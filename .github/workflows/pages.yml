@@ -1,5 +1,12 @@
 # Veröffentlicht die Demo auf GitHub Pages.
 #
+# EINMALIG VON HAND: Settings -> Pages -> Build and deployment -> Source
+# auf "GitHub Actions" stellen. Das Token dieses Laufs darf die Pages-Seite
+# nicht selbst ANLEGEN (Create Pages site: "Resource not accessible by
+# integration") — es darf nur auf eine bestehende veröffentlichen. Solange
+# der Schalter aus ist, scheitert der Lauf an configure-pages, und das ist
+# richtig so: eine stille Weiterfahrt hieße, es sei veröffentlicht.
+#
 # Die Seite wird im Lauf NEU GEBAUT und gegen die eingecheckte Datei
 # verglichen — eine Demo, die von der Engine abgedriftet ist, geht nicht
 # online, sie lässt den Lauf scheitern.

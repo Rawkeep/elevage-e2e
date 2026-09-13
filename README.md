@@ -115,6 +115,12 @@ abgedriftet ist, geht nicht online.
 python3 -m tools.baue_demo    # schreibt docs/index.html
 ```
 
+**Einmalig einzuschalten:** *Settings → Pages → Build and deployment →
+Source: **GitHub Actions***. Das Token des Workflows darf die Pages-Seite
+nicht selbst anlegen, nur auf eine bestehende veröffentlichen. Bis der
+Schalter steht, scheitert der Lauf an `configure-pages` — absichtlich,
+denn eine stille Weiterfahrt hieße, es sei veröffentlicht.
+
 Pages kann den Taktgeber selbst nicht hosten: die Anwendung braucht Python
 und eine Datenbank, Pages liefert nur Dateien. Dafür sind `Dockerfile` und
 `fly.toml` da.

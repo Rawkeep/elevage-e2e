@@ -47,6 +47,10 @@ FRANZOESISCH: dict[str, str] = {
     "Buchen": "Enregistrer",
     "Jetzt nachreichen": "Envoyer maintenant",
     # Abschnitte
+    "Stand": "État",
+    "Was zu tun ist": "Ce qu'il y a à faire",
+    "Eintragen": "Saisir",
+    "Offene Ausgleiche": "Compensations ouvertes",
     "Überfällig": "En retard",
     "Jetzt dran": "À faire maintenant",
     "Jetzt besorgen": "À commander",

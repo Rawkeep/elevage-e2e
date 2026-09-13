@@ -281,15 +281,42 @@ label { display: block; font-size: .82rem; color: var(--leise); margin-bottom: 4
 """
 
 BAUSTEINE = """
-.huelle { max-width: 64rem; margin: 0 auto; padding: 16px; }
-.karte { padding: 16px; margin-bottom: 14px; }
+.huelle { max-width: 72rem; margin: 0 auto; padding: 16px; }
+.karte { padding: 18px; margin-bottom: 14px; }
+
+/* Auf breiten Schirmen zwei Spalten: links, was zu tun ist, rechts der
+   Stand und die Eingaben. Eine einzige Spalte lässt 1920 px zu 80 %
+   leer und macht aus jeder Seite eine Wand. */
+.raster { display: grid; gap: 14px; align-items: start; }
+/* Rasterkinder schrumpfen sonst nicht unter ihre min-content-Breite und
+   schieben die Seite quer — bei 320 px waren es fünf Pixel. */
+.raster > *, .spalte > *, .stand > * { min-width: 0; }
+@media (min-width: 62rem) {
+  .raster { grid-template-columns: minmax(0, 1.35fr) minmax(0, 1fr); }
+  .raster > .karte, .spalte > .karte { margin-bottom: 0; }
+  .spalte { display: grid; gap: 14px; align-content: start; }
+}
 
 h1 { font-size: 1.5rem; margin: 0 0 2px; letter-spacing: -.01em; }
 h2 {
-  font-size: .82rem; margin: 0 0 12px; letter-spacing: .09em;
+  font-size: .82rem; margin: 0 0 14px; letter-spacing: .09em;
   text-transform: uppercase; color: var(--leise);
 }
+/* Untergruppen tragen keine eigene Karte mehr, nur eine leise Marke. */
+h3 {
+  font-size: .78rem; margin: 18px 0 8px; letter-spacing: .07em;
+  text-transform: uppercase; color: var(--leise); font-weight: 650;
+}
+h2 + .block > h3, .stand > .block > h3 { margin-top: 0; }
+
+/* Der Stand ist ein Streifen, keine Säule: was nebeneinander passt,
+   steht nebeneinander. */
+.stand { display: grid; gap: 14px 22px; grid-template-columns: 1fr; }
+@media (min-width: 46rem) {
+  .stand { grid-template-columns: repeat(auto-fit, minmax(15rem, 1fr)); }
+}
 .leise { color: var(--leise); font-size: .92rem; }
+.winzig { font-size: .84rem; }
 
 /* Jede Zeile darf umbrechen, und jedes Kind darf schrumpfen. Ohne
    min-width:0 wächst ein <select> auf die Breite seiner längsten Option
@@ -314,14 +341,23 @@ button:hover { border-color: var(--petrol); }
 }
 li.posten .reihe > :first-child { flex: 1 1 16rem; min-width: 0; }
 li.posten .reihe > :last-child { flex: 0 0 auto; text-align: right; }
-header .reihe, #kopfzahlen .reihe { align-items: center; }
+header .reihe { align-items: center; }
 .werkzeuge { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
 .werkzeuge label { margin: 0; }
 .werkzeuge select, .werkzeuge button { min-height: 38px; }
 
+/* Der Stand als Wertetafel statt als drei Karten. */
+.tafel { display: grid; gap: 10px 18px; grid-template-columns: 1fr; }
+@media (min-width: 26rem) { .tafel { grid-template-columns: auto 1fr; } }
+.tafel dt {
+  font-size: .78rem; letter-spacing: .06em; text-transform: uppercase;
+  color: var(--leise); align-self: baseline;
+}
+.tafel dd { margin: 0; min-width: 0; overflow-wrap: anywhere; }
+
 .lage {
   display: inline-flex; align-items: center; gap: 8px; font-weight: 700;
-  padding: 6px 16px; border-radius: 999px; border: 2px solid currentColor;
+  padding: 5px 14px; border-radius: 999px; border: 2px solid currentColor;
   max-width: 100%;
 }
 .ROT { color: var(--terrakotta); }
@@ -330,8 +366,8 @@ header .reihe, #kopfzahlen .reihe { align-items: center; }
 
 ul { margin: 0; padding: 0; }
 li.posten {
-  list-style: none; border-left: 5px solid var(--kante);
-  border-radius: 10px; padding: 11px 13px; margin-bottom: 8px;
+  list-style: none; border-left: 4px solid var(--kante);
+  border-radius: 10px; padding: 10px 13px; margin-bottom: 7px;
   background: var(--gruen-feld); overflow-wrap: anywhere;
 }
 li.ROT { border-left-color: var(--terrakotta); background: var(--rot-feld); }
@@ -342,13 +378,24 @@ li.GRUEN, li.ERLEDIGT { border-left-color: var(--petrol); background: var(--grue
 .mittel { font-size: .9rem; color: var(--leise); }
 .frist { font-variant-numeric: tabular-nums; font-weight: 700; white-space: nowrap; }
 
+/* Was man selten braucht, liegt zugeklappt da — sichtbar, aber nicht im Weg. */
+details { border-top: 1px solid var(--kante); padding-top: 12px; margin-top: 16px; }
+details[open] { padding-bottom: 4px; }
+summary {
+  cursor: pointer; font-size: .78rem; letter-spacing: .07em;
+  text-transform: uppercase; color: var(--leise); font-weight: 650;
+  min-height: 32px; display: flex; align-items: center; gap: 8px;
+}
+summary:focus-visible { outline: 3px solid var(--ocker); outline-offset: 3px; }
+details > :not(summary) { margin-top: 10px; }
+
 .breit { overflow-x: auto; }
 table { width: 100%; border-collapse: collapse; font-variant-numeric: tabular-nums; }
 th, td { text-align: left; padding: 6px 8px; border-bottom: 1px solid var(--kante); }
 td.zahl, th.zahl { text-align: right; white-space: nowrap; }
 
 .befund {
-  font-size: .9rem; border-left: 4px solid var(--ocker);
+  font-size: .9rem; border-left: 3px solid var(--ocker);
   padding-left: 11px; margin-bottom: 9px; color: var(--leise);
   overflow-wrap: anywhere;
 }
@@ -421,98 +468,119 @@ _SEITE_MARKUP = """
 
 <p id="zustand" class="karte glas" role="status">Lade …</p>
 
-<section class="karte glas" id="kopfzahlen" hidden>
-  <div class="reihe">
-    <span class="lage" id="lage"></span>
-    <span class="leise" id="alter"></span>
+<section class="karte glas stand" id="kopfzahlen" hidden>
+  <div>
+    <h3>Stand</h3>
+    <p class="reihe" style="margin:0">
+      <span class="lage" id="lage"></span>
+      <span class="leise" id="alter"></span>
+    </p>
+    <p class="leise winzig" id="phase" style="margin:8px 0 0"></p>
   </div>
-  <p class="leise" id="phase" style="margin:8px 0 0"></p>
+
+  <div class="block" id="futter" hidden>
+    <h3>Futter</h3>
+    <p id="futtertext" style="margin:0"></p>
+    <p class="leise winzig" id="futterherkunft" style="margin:4px 0 0"></p>
+  </div>
+
+  <div class="block" id="sperre" hidden>
+    <h3>Wartezeit</h3>
+    <p id="sperrtext" style="margin:0;font-weight:650"></p>
+    <ul id="sperrliste" style="margin-top:8px"></ul>
+  </div>
 </section>
 
-<section class="karte glas" id="sperre" hidden>
-  <h2>Wartezeit</h2>
-  <p id="sperrtext" style="margin:0;font-weight:650"></p>
-  <ul id="sperrliste" style="margin-top:10px"></ul>
+<div class="raster">
+
+<section class="karte glas" id="karte-aufgaben" data-sammel hidden>
+  <h2>Was zu tun ist</h2>
+  <div class="block" id="block-ueberfaellig" hidden><h3>Überfällig</h3><ul></ul></div>
+  <div class="block" id="block-heute" hidden><h3>Jetzt dran</h3><ul></ul></div>
+  <div class="block" id="block-bestellen" hidden>
+    <h3>Jetzt besorgen</h3>
+    <p class="leise winzig" style="margin:-4px 0 9px">Vorlauf läuft — muss da sein,
+       bevor der Tag kommt.</p>
+    <ul></ul>
+  </div>
+  <div class="block" id="block-demnaechst" hidden><h3>Demnächst</h3><ul></ul></div>
+  <details class="block" id="block-erledigt" hidden>
+    <summary>Zuletzt erledigt</summary>
+    <ul></ul>
+  </details>
 </section>
 
-<section class="karte glas" id="futter" hidden>
-  <h2>Futter</h2>
-  <p id="futtertext" style="margin:0"></p>
-  <p class="leise" id="futterherkunft" style="margin:4px 0 0"></p>
+<div class="spalte">
+
+<section class="karte glas">
+  <h2>Eintragen</h2>
+  <div class="block">
+    <h3>Mischauftrag</h3>
+    <div class="kopf">
+      <div class="feld schmal"><label for="menge">Menge (kg)</label>
+        <input id="menge" type="number" min="1" step="50" value="500"></div>
+      <div class="feld"><label for="art">Bei Überhang</label>
+        <select id="art">
+          <option value="AUSGLEICH">über den Energieträger ausgleichen</option>
+          <option value="VERBATIM">wie auf dem Blatt rechnen</option>
+          <option value="ANTEILIG">alles anteilig skalieren</option>
+        </select></div>
+      <button class="tat" id="rechnen" type="button">Rechnen</button>
+      <button class="still" id="buchen" type="button" hidden>Als gemischt buchen</button>
+    </div>
+    <div id="mischung" class="breit" style="margin-top:12px"></div>
+  </div>
+
+  <details>
+    <summary>Abgang buchen</summary>
+    <div class="kopf">
+      <div class="feld schmal"><label for="abgangtiere">Tiere</label>
+        <input id="abgangtiere" type="number" min="1" step="1"></div>
+      <div class="feld"><label for="abgangGrund">Grund</label>
+        <select id="abgangGrund">
+          <option value="VERENDET">verendet</option>
+          <option value="GEKEULT">gekeult</option>
+          <option value="VERKAUFT">verkauft</option>
+          <option value="SONSTIGES">sonstiges</option>
+        </select></div>
+      <div class="feld"><label for="abgangTag">Am</label><input id="abgangTag" type="date"></div>
+      <button class="tat" id="buchen-abgang" type="button">Buchen</button>
+    </div>
+    <p class="leise winzig" style="margin-bottom:0">Verkauft ist kein Verlust — der Grund
+       entscheidet, ob es in die Verlustquote zählt.</p>
+  </details>
+
+  <details>
+    <summary>Vorfall melden</summary>
+    <div class="kopf">
+      <div class="feld schmal"><label for="vorfallart">Art</label>
+        <select id="vorfallart"><option value="GUMBORO">Gumboro</option></select></div>
+      <div class="feld"><label for="vorfalltag">Festgestellt am</label>
+        <input id="vorfalltag" type="date"></div>
+      <div class="feld"><label for="vorfalltext">Beobachtung</label>
+        <input id="vorfalltext" placeholder="optional"></div>
+      <button class="tat" id="melden" type="button">Melden</button>
+    </div>
+    <p class="leise winzig" style="margin-bottom:0">Das Schema startet am gemeldeten Tag.</p>
+  </details>
 </section>
 
-<section class="karte glas" id="block-ueberfaellig" hidden>
-  <h2>Überfällig</h2><ul></ul></section>
-<section class="karte glas" id="block-heute" hidden><h2>Jetzt dran</h2><ul></ul></section>
-<section class="karte glas" id="block-bestellen" hidden>
-  <h2>Jetzt besorgen</h2>
-  <p class="leise" style="margin:-8px 0 10px">Vorlauf läuft — muss da sein,
-     bevor der Tag kommt.</p>
-  <ul></ul>
-</section>
-<section class="karte glas" id="block-demnaechst" hidden><h2>Demnächst</h2><ul></ul></section>
-<section class="karte glas" id="block-erledigt" hidden>
-  <h2>Zuletzt erledigt</h2><ul></ul></section>
-
-<section class="karte glas" id="block-vermerke" hidden>
+<section class="karte glas" id="karte-pruefen" data-sammel hidden>
   <h2>Zu prüfen</h2>
-  <p class="leise" style="margin:-8px 0 10px">Bleibt liegen, bis jemand am
-     Original nachsieht.</p>
-  <ul id="vermerke"></ul>
-</section>
-
-<section class="karte glas">
-  <h2>Mischauftrag</h2>
-  <div class="kopf">
-    <div class="feld schmal"><label for="menge">Menge (kg)</label>
-      <input id="menge" type="number" min="1" step="50" value="500"></div>
-    <div class="feld"><label for="art">Bei Überhang</label>
-      <select id="art">
-        <option value="AUSGLEICH">über den Energieträger ausgleichen</option>
-        <option value="VERBATIM">wie auf dem Blatt rechnen</option>
-        <option value="ANTEILIG">alles anteilig skalieren</option>
-      </select></div>
-    <button class="tat" id="rechnen" type="button">Rechnen</button>
-    <button class="still" id="buchen" type="button" hidden>Als gemischt buchen</button>
+  <div class="block" id="block-vermerke" hidden>
+    <h3>Offene Ausgleiche</h3>
+    <p class="leise winzig" style="margin:-4px 0 9px">Bleibt liegen, bis jemand am
+       Original nachsieht.</p>
+    <ul id="vermerke"></ul>
   </div>
-  <div id="mischung" class="breit" style="margin-top:12px"></div>
-</section>
-
-<section class="karte glas">
-  <h2>Abgang buchen</h2>
-  <div class="kopf">
-    <div class="feld schmal"><label for="abgangtiere">Tiere</label>
-      <input id="abgangtiere" type="number" min="1" step="1"></div>
-    <div class="feld"><label for="abgangGrund">Grund</label>
-      <select id="abgangGrund">
-        <option value="VERENDET">verendet</option>
-        <option value="GEKEULT">gekeult</option>
-        <option value="VERKAUFT">verkauft</option>
-        <option value="SONSTIGES">sonstiges</option>
-      </select></div>
-    <div class="feld"><label for="abgangTag">Am</label><input id="abgangTag" type="date"></div>
-    <button class="tat" id="buchen-abgang" type="button">Buchen</button>
+  <div class="block" id="block-befunde" hidden>
+    <h3>Befunde</h3>
+    <div id="befunde"></div>
   </div>
-  <p class="leise" style="margin-bottom:0">Verkauft ist kein Verlust — der Grund
-     entscheidet, ob es in die Verlustquote zählt.</p>
 </section>
 
-<section class="karte glas">
-  <h2>Vorfall melden</h2>
-  <div class="kopf">
-    <div class="feld schmal"><label for="vorfallart">Art</label>
-      <select id="vorfallart"><option value="GUMBORO">Gumboro</option></select></div>
-    <div class="feld"><label for="vorfalltag">Festgestellt am</label>
-      <input id="vorfalltag" type="date"></div>
-    <div class="feld"><label for="vorfalltext">Beobachtung</label>
-      <input id="vorfalltext" placeholder="optional"></div>
-    <button class="tat" id="melden" type="button">Melden</button>
-  </div>
-  <p class="leise" style="margin-bottom:0">Das Schema startet am gemeldeten Tag.</p>
-</section>
-
-<section class="karte glas" id="block-befunde" hidden>
-  <h2>Befunde</h2><div id="befunde"></div></section>
+</div>
+</div>
 
 <footer class="leise" style="text-align:center;padding:4px 0 24px">
   <span id="stempel"></span>
@@ -682,6 +750,15 @@ function postenZeile(t, mitKnopf) {
   return li;
 }
 
+// Eine Sammelkarte lebt von ihren Blöcken: sind alle leer, verschwindet
+// auch die Überschrift. Sonst stünde \u201eZu pr\u00fcfen\u201c \u00fcber dem Nichts.
+function karten() {
+  document.querySelectorAll("[data-sammel]").forEach((karte) => {
+    const bloecke = Array.from(karte.querySelectorAll(".block"));
+    karte.hidden = bloecke.every((block) => block.hidden);
+  });
+}
+
 function fuelle(id, liste, mitKnopf) {
   const block = $(id);
   const ul = block.querySelector("ul");
@@ -719,6 +796,7 @@ async function lade() {
       ["kopfzahlen", "sperre", "futter", "block-ueberfaellig", "block-heute",
        "block-bestellen", "block-demnaechst", "block-erledigt", "block-vermerke",
        "block-befunde"].forEach((i) => $(i).hidden = true);
+      karten();
       return;
     }
     const p = new URLSearchParams({
@@ -828,6 +906,7 @@ function zeige() {
     kasten.appendChild(p);
   });
   $("block-befunde").hidden = bild.issues.length === 0;
+  karten();
   uebersetzeSeite();
 }
 

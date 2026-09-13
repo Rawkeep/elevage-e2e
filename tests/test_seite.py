@@ -191,3 +191,34 @@ def test_der_grund_kostet_keine_bytes():
     """Das Glas braucht etwas zum Durchscheinen — aber kein Bild."""
     assert "radial-gradient" in SEITE
     assert "url(" not in SEITE.split("<script>")[0].replace("data:image/svg+xml", "")
+
+
+def test_die_seite_steht_in_wenigen_karten():
+    """Elf gestapelte Karten waren auf jeder Breite eine Wand. Die Abschnitte
+    leben jetzt als Blöcke in vier Karten (Stand, Was zu tun ist, Eintragen,
+    Zu prüfen); dazu kommen Band, Kopfzeile und Zustandszeile — die Zahl ist
+    der Test."""
+    assert SEITE.count('class="karte glas') <= 7
+    for klasse in (".raster", ".spalte", ".stand", ".block"):
+        assert klasse in SEITE, klasse
+    # Zwei Spalten erst, wenn Platz da ist; darunter bleibt es eine Säule.
+    assert "@media (min-width: 62rem)" in SEITE
+
+
+def test_eine_sammelkarte_ohne_inhalt_verschwindet():
+    """Sonst stünde „Zu prüfen" über dem Nichts."""
+    assert "function karten()" in SEITE
+    assert 'querySelectorAll("[data-sammel]")' in SEITE
+    assert SEITE.count("data-sammel") == 3  # CSS-Wahl plus zwei Karten
+
+
+def test_rasterkinder_duerfen_schrumpfen():
+    """Ohne min-width:0 schiebt ein Rasterkind die Seite quer — bei 320 px
+    waren es fünf Pixel, gemessen im Browser."""
+    assert ".raster > *, .spalte > *, .stand > * { min-width: 0; }" in SEITE
+
+
+def test_selten_gebrauchtes_liegt_zugeklappt():
+    """Abgang, Vorfall und die erledigten Schritte sind nicht das Tagesgeschäft."""
+    assert SEITE.count("<summary>") >= 3
+    assert "<details" in SEITE

@@ -120,6 +120,50 @@ FRANZOESISCH: dict[str, str] = {
     "Eier": "Œufs",
     "Fleisch": "Viande",
     "gesperrt bis": "bloqué jusqu'au",
+    # Rückmeldungen und zusammengesetzte Zeilen
+    "Als geprüft abgehakt.": "Marqué comme vérifié.",
+    "Anlegen mit:": "Créer avec :",
+    "Charge": "Lot",
+    "Das hat nicht geklappt:": "Échec :",
+    "Eingaben noch nicht beim Server": "saisie(s) pas encore sur le serveur",
+    "Eingaben warten": "saisie(s) en attente",
+    "Gebucht — der Futterbedarf rechnet ab jetzt damit.": (
+        "Enregistré — le besoin en aliment en tient compte."
+    ),
+    "Ist-Einwaage": "Pesée réelle",
+    "Kein Netz": "Pas de réseau",
+    "Kein Rezept für diese Linie.": "Aucune formule pour cette lignée.",
+    "Mischung protokolliert.": "Mélange enregistré.",
+    "Nicht abgehakt:": "Non validé :",
+    "Nicht aufgenommen:": "Non enregistré :",
+    "Nicht gebucht.": "Non enregistré.",
+    "Nicht gebucht:": "Non enregistré :",
+    "Noch keine Herde für diesen Betrieb.": ("Aucune bande pour cette exploitation."),
+    "Rohstoff": "Matière première",
+    "Unbekannter Fehler": "Erreur inconnue",
+    "Version": "Version",
+    "Vorfall aufgenommen — das Schema steht im Plan.": (
+        "Incident enregistré — le protocole est au planning."
+    ),
+    "Wie viele Tiere?": "Combien d'animaux ?",
+    "abgehakt — wird nachgereicht.": "validé — sera envoyé plus tard.",
+    "abgehakt.": "validé.",
+    "erledigt am": "fait le",
+    "frei ab": "libre à partir du",
+    "letzte Gabe": "dernière administration",
+    "Anmeldung fehlgeschlagen.": "Échec de la connexion.",
+    # Einrichtungsseite
+    "Noch kein Benutzer angelegt": "Aucun utilisateur créé",
+    "Ohne Benutzer gibt es keine Anmeldung und damit keinen Zugang. Den ersten "
+    "legst du auf dem Rechner an, auf dem der Taktgeber läuft:": (
+        "Sans utilisateur, pas de connexion et donc pas d'accès. Créez le premier "
+        "sur la machine où tourne le Cadenceur :"
+    ),
+    "Das Passwort wird dabei abgefragt und steht nicht in der Kommandozeile. "
+    "Danach diese Seite neu laden.": (
+        "Le mot de passe est demandé et n'apparaît pas dans la ligne de commande. "
+        "Rechargez ensuite cette page."
+    ),
 }
 """Was auf dem Bildschirm steht, nicht was in den Daten steht."""
 

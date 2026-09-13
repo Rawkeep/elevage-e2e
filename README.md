@@ -146,6 +146,20 @@ zusätzlich ein Zeichen und ein Wort („! überfällig", „› jetzt dran").
 Abhaken folgt dem Undo-Muster: sofort ausführen, Toast mit „Rückgängig",
 keine Bestätigungskaskade.
 
+**Glas mit Rückweg.** Die Flächen sind durchscheinend (`backdrop-filter`)
+über einem Grund aus zwei CSS-Farbfeldern — kein Bild, keine Bytes. Optik
+darf die Lesbarkeit nicht kosten: gemessen im Browser liegt **kein** Text
+unter WCAG AA, hell wie dunkel. Wo der Browser kein `backdrop-filter` kann
+oder jemand `prefers-reduced-transparency` gesetzt hat, werden dieselben
+Flächen deckend gezeichnet.
+
+**Jede Breite ohne Querscroll.** Über acht Viewports von 320 bis 1920 px
+gemessen, Anmeldeseite wie Hauptseite. Der Fehler davor: ein `<select>`
+wächst auf die Breite seiner längsten Option, wenn sein Kasten nicht
+schrumpfen darf — unter 768 px lief die Seite quer. Jetzt sitzt jedes
+Bedienfeld in einem `.feld` mit `min-width: 0`, lange Herdennamen werden
+gekürzt, und nur die Mischtabelle scrollt, nie die Seite.
+
 ## Anmeldung
 
 **Der Betrieb kommt aus der Sitzung, nie aus der Anfrage.** Damit ist die

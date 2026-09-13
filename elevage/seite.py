@@ -7,7 +7,20 @@ schmale Leitungen, Dark Mode über Tokens, Bewegung nur mit
 `prefers-reduced-motion`. Farbe trägt nie allein — jede Ampel hat zusätzlich
 ein Zeichen und ein Wort.
 
-`test_seite.py` hält fest, dass hier keine externe Adresse steht.
+**Glas mit Rückweg.** Die Flächen sind durchscheinend (`backdrop-filter`)
+über einem ruhigen Grund aus zwei CSS-Farbfeldern — kein Bild, keine Bytes.
+Das ist Optik, kein Selbstzweck, und sie darf die Lesbarkeit nicht kosten:
+die Trägerflächen bleiben deckend genug für Kontrast über 4,5:1, und wo der
+Browser kein `backdrop-filter` kann oder jemand weniger Transparenz
+eingestellt hat, werden dieselben Flächen deckend gezeichnet.
+
+**Jede Breite ohne Querscroll.** Jedes Bedienfeld sitzt in einem `.feld` mit
+`min-width: 0`. Ohne das wächst ein `<select>` auf die Breite seiner
+längsten Option und schiebt die ganze Seite quer.
+
+Die drei Seiten teilen sich Grundlagen, Übersetzer und Zusammenbau — eine
+Quelle, nicht drei. `test_seite.py` hält fest, dass hier keine externe
+Adresse steht.
 """
 
 from __future__ import annotations
@@ -20,8 +33,8 @@ DIENER = """// Service Worker: die Seite muss auch ohne Netz aufgehen.
 // unveränderlich (cache first, sonst wäre der Stall bei jedem Funkloch
 // weiß), die DATEN sind es nicht (network first, damit niemand mit einem
 // Tagesbild von gestern arbeitet, wenn ein frisches erreichbar ist).
-const SEITE_VORRAT = "taktgeber-seite-v1";
-const DATEN_VORRAT = "taktgeber-daten-v1";
+const SEITE_VORRAT = "taktgeber-seite-v2";
+const DATEN_VORRAT = "taktgeber-daten-v2";
 const SEITENPFADE = ["/", "/anmelden"];
 
 self.addEventListener("install", (ereignis) => {
@@ -79,7 +92,7 @@ self.addEventListener("fetch", (ereignis) => {
 FAVICON = (
     "data:image/svg+xml,"
     "%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E"
-    "%3Crect width='16' height='16' rx='3' fill='%2312525c'/%3E"
+    "%3Crect width='16' height='16' rx='3' fill='%23134e57'/%3E"
     "%3Crect x='4' y='3.5' width='8' height='2' rx='1' fill='%23faf7f2'/%3E"
     "%3Crect x='4' y='7' width='8' height='2' rx='1' fill='%23e0b352'/%3E"
     "%3Crect x='4' y='10.5' width='8' height='2' rx='1' fill='%23f09077'/%3E"
@@ -89,241 +102,8 @@ FAVICON = (
 
 Ohne dieses Zeichen fragt jeder Browser /favicon.ico an und bekommt 404."""
 
-_ROH = """<!doctype html>
-<html lang="de">
-<head>
-<meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
-<link rel="icon" href="FAVICON_HIER">
-<title>Taktgeber</title>
-<style>
-:root {
-  color-scheme: light dark;
-  --grund: #faf7f2;      --karte: #ffffff;      --rand: #ddd2c4;
-  --text: #241d16;       --leise: #5d5145;
-  --terrakotta: #9c3d22; --petrol: #12525c;     --ocker: #8a6412;
-  --rot-feld: #fbeae5;   --gelb-feld: #fdf3dd;  --gruen-feld: #e6f0ef;
-  --schrift: 17px; --radius: 10px; --ziel: 44px;
-}
-@media (prefers-color-scheme: dark) {
-  :root:not([data-thema="hell"]) {
-    --grund: #191512;    --karte: #221d19;      --rand: #3d342c;
-    --text: #f3ece4;     --leise: #b9aa9a;
-    --terrakotta: #f09077; --petrol: #7fc6d1;   --ocker: #e0b352;
-    --rot-feld: #3a201a; --gelb-feld: #352c14;  --gruen-feld: #1b2e2c;
-  }
-}
-:root[data-thema="dunkel"] {
-  --grund: #191512;      --karte: #221d19;      --rand: #3d342c;
-  --text: #f3ece4;       --leise: #b9aa9a;
-  --terrakotta: #f09077; --petrol: #7fc6d1;     --ocker: #e0b352;
-  --rot-feld: #3a201a;   --gelb-feld: #352c14;  --gruen-feld: #1b2e2c;
-}
-* { box-sizing: border-box; }
-body {
-  margin: 0; background: var(--grund); color: var(--text);
-  font: var(--schrift)/1.55 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
-}
-.huelle { max-width: 62rem; margin: 0 auto; padding: 16px; }
-h1 { font-size: 1.45rem; margin: 0 0 2px; }
-h2 { font-size: 1.05rem; margin: 0 0 10px; letter-spacing: .04em; text-transform: uppercase;
-     color: var(--leise); }
-.leise { color: var(--leise); font-size: .92rem; }
-.karte { background: var(--karte); border: 1px solid var(--rand); border-radius: var(--radius);
-         padding: 14px; margin-bottom: 14px; }
-.kopf { display: flex; flex-wrap: wrap; gap: 10px; align-items: flex-end; }
-label { display: block; font-size: .85rem; color: var(--leise); margin-bottom: 3px; }
-select, input, button {
-  font: inherit; min-height: var(--ziel); border-radius: 8px;
-  border: 1px solid var(--rand); background: var(--karte); color: var(--text);
-  padding: 6px 12px;
-}
-button { cursor: pointer; }
-button.tat { background: var(--petrol); border-color: var(--petrol); color: var(--grund);
-             font-weight: 600; }
-button.still { background: transparent; }
-button:focus-visible, select:focus-visible, input:focus-visible {
-  outline: 3px solid var(--ocker); outline-offset: 2px;
-}
-.lage { display: inline-flex; align-items: center; gap: 8px; font-weight: 700;
-        padding: 6px 14px; border-radius: 999px; border: 2px solid currentColor; }
-.ROT { color: var(--terrakotta); } .GELB { color: var(--ocker); }
-.GRUEN, .ERLEDIGT { color: var(--petrol); }
-li.posten { list-style: none; border-left: 5px solid var(--rand); border-radius: 6px;
-            padding: 10px 12px; margin-bottom: 8px; background: var(--grund); }
-li.ROT { border-left-color: var(--terrakotta); background: var(--rot-feld); }
-li.GELB { border-left-color: var(--ocker); background: var(--gelb-feld); }
-li.GRUEN, li.ERLEDIGT { border-left-color: var(--petrol); background: var(--gruen-feld); }
-ul { margin: 0; padding: 0; }
-.titel { font-weight: 650; }
-.mittel { font-size: .9rem; color: var(--leise); }
-.reihe { display: flex; flex-wrap: wrap; gap: 8px; align-items: flex-start;
-         justify-content: space-between; }
-li.posten .reihe > :first-child { flex: 1 1 18rem; min-width: 0; }
-li.posten .reihe > :last-child { flex: 0 0 auto; text-align: right; }
-header .reihe, #kopfzahlen .reihe { align-items: center; }
-.frist { font-variant-numeric: tabular-nums; font-weight: 700; white-space: nowrap; }
-table { width: 100%; border-collapse: collapse; font-variant-numeric: tabular-nums; }
-th, td { text-align: left; padding: 5px 8px; border-bottom: 1px solid var(--rand); }
-td.zahl, th.zahl { text-align: right; }
-.huelle-breit { overflow-x: auto; }
-.befund { font-size: .9rem; border-left: 4px solid var(--ocker); padding-left: 10px;
-          margin-bottom: 8px; color: var(--leise); }
-.toast { position: fixed; inset-block-end: 16px; inset-inline: 16px; max-width: 34rem;
-         margin-inline: auto; background: var(--text); color: var(--grund);
-         border-radius: var(--radius); padding: 12px 16px; display: flex; gap: 12px;
-         align-items: center; justify-content: space-between; }
-.toast button { background: transparent; border-color: currentColor; color: inherit;
-                min-height: 36px; }
-[hidden] { display: none !important; }
-body[data-rolle="LESER"] button.tat:not(#laden):not(#rechnen) { display: none; }
-body:not([data-rolle="LEITUNG"]) #vermerke button { display: none; }
-.leer { color: var(--leise); padding: 8px 0; }
-@media (prefers-reduced-motion: no-preference) {
-  .toast { animation: hoch .2s ease-out; }
-  @keyframes hoch { from { transform: translateY(8px); opacity: 0; } }
-}
-</style>
-</head>
-<body>
-<div class="huelle">
 
-<p class="karte" id="offlineband" role="status" hidden
-   style="border-color:var(--ocker);background:var(--gelb-feld);font-weight:650">
-  <span id="offlinetext"></span>
-  <button class="still" id="nachreichen" type="button"
-          style="margin-left:10px;min-height:36px">Jetzt nachreichen</button>
-</p>
-
-<header class="karte">
-  <div class="reihe">
-    <div>
-      <h1>Taktgeber</h1>
-      <p class="leise" id="unterzeile">Prophylaxe und Fütterung je Herde</p>
-    </div>
-    <div style="display:flex;gap:8px;align-items:center">
-      <span class="leise" id="wer"></span>
-      <label for="sprache" style="margin:0">Sprache</label>
-      <select id="sprache" style="min-height:36px;padding:2px 8px">
-        <option value="de">Deutsch</option>
-        <option value="fr">Français</option>
-      </select>
-      <button class="still" id="thema" type="button">Ansicht wechseln</button>
-      <button class="still" id="abmelden" type="button">Abmelden</button>
-    </div>
-  </div>
-  <div class="kopf" style="margin-top:12px">
-    <div><label for="herde">Herde</label><select id="herde"></select></div>
-    <div><label for="stichtag">Stichtag</label><input id="stichtag" type="date"></div>
-    <div><label for="vorrat">Futtervorrat (kg)</label>
-      <input id="vorrat" type="number" min="0" step="10" size="6" placeholder="optional"></div>
-    <button class="tat" id="laden" type="button">Anzeigen</button>
-  </div>
-</header>
-
-<p id="zustand" class="karte" role="status">Lade …</p>
-
-<section class="karte" id="kopfzahlen" hidden>
-  <div class="reihe">
-    <span class="lage" id="lage"></span>
-    <span class="leise" id="alter"></span>
-  </div>
-  <p class="leise" id="phase" style="margin-bottom:0"></p>
-</section>
-
-<section class="karte" id="sperre" hidden>
-  <h2>Wartezeit</h2>
-  <p id="sperrtext" style="margin:0;font-weight:650"></p>
-  <ul id="sperrliste" style="margin-top:8px"></ul>
-</section>
-
-<section class="karte" id="futter" hidden>
-  <h2>Futter</h2>
-  <p id="futtertext" style="margin:0"></p>
-  <p class="leise" id="futterherkunft" style="margin:4px 0 0"></p>
-</section>
-
-<section class="karte" id="block-ueberfaellig" hidden><h2>Überfällig</h2><ul></ul></section>
-<section class="karte" id="block-heute" hidden><h2>Jetzt dran</h2><ul></ul></section>
-<section class="karte" id="block-bestellen" hidden>
-  <h2>Jetzt besorgen</h2>
-  <p class="leise" style="margin:-6px 0 10px">Vorlauf läuft — muss da sein, bevor der Tag kommt.</p>
-  <ul></ul>
-</section>
-<section class="karte" id="block-demnaechst" hidden><h2>Demnächst</h2><ul></ul></section>
-<section class="karte" id="block-erledigt" hidden><h2>Zuletzt erledigt</h2><ul></ul></section>
-
-<section class="karte" id="block-vermerke" hidden>
-  <h2>Zu prüfen</h2>
-  <p class="leise" style="margin:-6px 0 10px">Bleibt liegen, bis jemand am Original nachsieht.</p>
-  <ul id="vermerke"></ul>
-</section>
-
-<section class="karte">
-  <h2>Mischauftrag</h2>
-  <div class="kopf">
-    <div><label for="menge">Menge (kg)</label>
-      <input id="menge" type="number" min="1" step="50" value="500"></div>
-    <div><label for="art">Bei Überhang</label>
-      <select id="art">
-        <option value="AUSGLEICH">über den Energieträger ausgleichen</option>
-        <option value="VERBATIM">wie auf dem Blatt rechnen</option>
-        <option value="ANTEILIG">alles anteilig skalieren</option>
-      </select></div>
-    <button class="tat" id="rechnen" type="button">Rechnen</button>
-    <button class="still" id="buchen" type="button" hidden>Als gemischt buchen</button>
-  </div>
-  <div id="mischung" class="huelle-breit" style="margin-top:10px"></div>
-</section>
-
-<section class="karte">
-  <h2>Abgang buchen</h2>
-  <div class="kopf">
-    <div><label for="abgangtiere">Tiere</label>
-      <input id="abgangtiere" type="number" min="1" step="1" style="width:6rem"></div>
-    <div><label for="abgangGrund">Grund</label>
-      <select id="abgangGrund">
-        <option value="VERENDET">verendet</option>
-        <option value="GEKEULT">gekeult</option>
-        <option value="VERKAUFT">verkauft</option>
-        <option value="SONSTIGES">sonstiges</option>
-      </select></div>
-    <div><label for="abgangTag">Am</label><input id="abgangTag" type="date"></div>
-    <button class="tat" id="buchen-abgang" type="button">Buchen</button>
-  </div>
-  <p class="leise" style="margin-bottom:0">Verkauft ist kein Verlust — der Grund
-     entscheidet, ob es in die Verlustquote zählt.</p>
-</section>
-
-<section class="karte">
-  <h2>Vorfall melden</h2>
-  <div class="kopf">
-    <div><label for="vorfallart">Art</label>
-      <select id="vorfallart"><option value="GUMBORO">Gumboro</option></select></div>
-    <div><label for="vorfalltag">Festgestellt am</label><input id="vorfalltag" type="date"></div>
-    <div style="flex:1 1 12rem"><label for="vorfalltext">Beobachtung</label>
-      <input id="vorfalltext" style="width:100%" placeholder="optional"></div>
-    <button class="tat" id="melden" type="button">Melden</button>
-  </div>
-  <p class="leise" style="margin-bottom:0">Das Schema startet am gemeldeten Tag.</p>
-</section>
-
-<section class="karte" id="block-befunde" hidden><h2>Befunde</h2><div id="befunde"></div></section>
-
-<footer class="leise" style="text-align:center;padding:8px 0 20px">
-  <span id="stempel"></span>
-</footer>
-
-</div>
-
-<div class="toast" id="toast" hidden>
-  <span id="toasttext"></span>
-  <button type="button" id="undo">Rückgängig</button>
-</div>
-
-<script>
-const $ = (id) => document.getElementById(id);
-
+UEBERSETZER = """
 // Nur die Oberfläche wird übersetzt, nicht die Daten: Präparatnamen,
 // Rezeptposten und Befunde bleiben, wie sie sind. Ein Befund, der in der
 // Übersetzung eine Nuance verliert, ist schlimmer als einer auf Deutsch.
@@ -338,22 +118,418 @@ function txt(text) {
   return (buch && buch[text]) || text;   // fehlt eine Vokabel: deutscher Text
 }
 
+// Kommandos bleiben, wie sie sind — eine übersetzte Kommandozeile
+// funktioniert nicht mehr.
+const UNBERUEHRT = ["CODE", "PRE", "SAMP", "KBD", "SCRIPT", "STYLE"];
+
 function uebersetzeSeite() {
   if (SPRACHE === "de") return;
   const lauf = document.createTreeWalker(document.body, NodeFilter.SHOW_TEXT);
   const knoten = [];
   while (lauf.nextNode()) knoten.push(lauf.currentNode);
   knoten.forEach((k) => {
+    if (!k.parentElement || UNBERUEHRT.includes(k.parentElement.tagName)) return;
     const roh = k.nodeValue.trim();
     if (!roh) return;
-    const uebersetzt = txt(roh);
-    if (uebersetzt !== roh) k.nodeValue = k.nodeValue.replace(roh, uebersetzt);
+    // Ein Absatz im Markup trägt Umbrüche und Einrückung. Nachgeschlagen
+    // wird die geglättete Fassung, ersetzt wird das gefundene Stück.
+    const flach = roh.replace(/\\s+/g, " ");
+    const uebersetzt = txt(flach);
+    if (uebersetzt !== flach) k.nodeValue = k.nodeValue.replace(roh, uebersetzt);
   });
   document.querySelectorAll("[placeholder]").forEach((feld) => {
     feld.placeholder = txt(feld.placeholder);
   });
   document.documentElement.lang = SPRACHE;
 }
+
+function sprachwahl(kennung) {
+  const wahl = document.getElementById(kennung);
+  wahl.value = SPRACHE;
+  wahl.onchange = () => {
+    try { localStorage.setItem("taktgeber-sprache", wahl.value); } catch (f) {}
+    window.location.reload();   // einmal sauber neu aufbauen statt halb übersetzt
+  };
+}
+"""
+"""Derselbe Übersetzungslauf für alle drei Seiten — einer, nicht drei."""
+
+
+GRUNDLAGEN = """
+:root {
+  color-scheme: light dark;
+
+  /* Erdige Grundtöne — bewusst gegen das Agrar-Grün-Klischee. */
+  --grund:      #f6f1e9;
+  --grund-2:    #efe7db;
+  --glas:       rgba(255, 255, 255, .74);
+  --glas-stark: rgba(255, 255, 255, .90);
+  --kante:      rgba(120, 96, 68, .22);
+  --glanz:      rgba(255, 255, 255, .65);
+  --schatten:   0 1px 2px rgba(60, 44, 26, .06), 0 8px 24px rgba(60, 44, 26, .07);
+
+  --text:       #221b13;
+  --leise:      #57493c;
+  --terrakotta: #8f3418;
+  --petrol:     #0f4a54;
+  --ocker:      #7a5709;
+
+  --rot-feld:   rgba(178, 64, 32, .10);
+  --gelb-feld:  rgba(190, 140, 20, .13);
+  --gruen-feld: rgba(15, 74, 84, .09);
+
+  --schrift: 17px;
+  --radius: 14px;
+  --ziel: 44px;
+  --blur: blur(16px) saturate(150%);
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-thema="hell"]) {
+    --grund:      #14100d;
+    --grund-2:    #1c1712;
+    --glas:       rgba(44, 37, 30, .70);
+    --glas-stark: rgba(48, 40, 33, .88);
+    --kante:      rgba(226, 205, 176, .17);
+    --glanz:      rgba(255, 236, 210, .10);
+    --schatten:   0 1px 2px rgba(0, 0, 0, .35), 0 10px 30px rgba(0, 0, 0, .40);
+
+    --text:       #f4ece2;
+    --leise:      #c3b3a0;
+    --terrakotta: #ff9c7f;
+    --petrol:     #86cdd8;
+    --ocker:      #e8bd5e;
+
+    --rot-feld:   rgba(255, 120, 80, .14);
+    --gelb-feld:  rgba(232, 189, 94, .14);
+    --gruen-feld: rgba(134, 205, 216, .12);
+  }
+}
+
+:root[data-thema="dunkel"] {
+  --grund:      #14100d;
+  --grund-2:    #1c1712;
+  --glas:       rgba(44, 37, 30, .70);
+  --glas-stark: rgba(48, 40, 33, .88);
+  --kante:      rgba(226, 205, 176, .17);
+  --glanz:      rgba(255, 236, 210, .10);
+  --schatten:   0 1px 2px rgba(0, 0, 0, .35), 0 10px 30px rgba(0, 0, 0, .40);
+
+  --text:       #f4ece2;
+  --leise:      #c3b3a0;
+  --terrakotta: #ff9c7f;
+  --petrol:     #86cdd8;
+  --ocker:      #e8bd5e;
+
+  --rot-feld:   rgba(255, 120, 80, .14);
+  --gelb-feld:  rgba(232, 189, 94, .14);
+  --gruen-feld: rgba(134, 205, 216, .12);
+}
+
+* { box-sizing: border-box; }
+
+body {
+  margin: 0;
+  min-height: 100vh;
+  background: var(--grund);
+  /* Zwei weiche Farbfelder als Grund — reines CSS, kein Bild, keine Bytes.
+     Sie geben dem Glas etwas zum Durchscheinen; ohne sie wäre es nur grau. */
+  background-image:
+    radial-gradient(60rem 40rem at 12% -10%, rgba(15, 74, 84, .16), transparent 60%),
+    radial-gradient(50rem 36rem at 105% 8%, rgba(178, 84, 40, .14), transparent 62%),
+    linear-gradient(180deg, var(--grund) 0%, var(--grund-2) 100%);
+  background-attachment: fixed;
+  color: var(--text);
+  font: var(--schrift)/1.55 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+}
+
+/* Glas ist Optik, nicht Funktion: wo der Browser es nicht kann oder der
+   Mensch weniger Transparenz eingestellt hat, wird dieselbe Fläche deckend
+   gezeichnet. Der Text bleibt in jedem Fall lesbar. */
+@supports not (backdrop-filter: blur(1px)) {
+  :root { --glas: var(--grund); --glas-stark: var(--grund); --blur: none; }
+}
+@media (prefers-reduced-transparency: reduce) {
+  :root { --glas: var(--grund); --glas-stark: var(--grund); --blur: none; }
+}
+
+.glas {
+  background: var(--glas);
+  backdrop-filter: var(--blur);
+  -webkit-backdrop-filter: var(--blur);
+  border: 1px solid var(--kante);
+  border-radius: var(--radius);
+  box-shadow: var(--schatten), inset 0 1px 0 var(--glanz);
+}
+
+select, input, button {
+  font: inherit;
+  min-height: var(--ziel);
+  max-width: 100%;
+  border-radius: 10px;
+  border: 1px solid var(--kante);
+  background: var(--glas-stark);
+  color: var(--text);
+  padding: 6px 12px;
+}
+button { cursor: pointer; }
+button:focus-visible, select:focus-visible, input:focus-visible {
+  outline: 3px solid var(--ocker); outline-offset: 2px;
+}
+label { display: block; font-size: .82rem; color: var(--leise); margin-bottom: 4px; }
+[hidden] { display: none !important; }
+"""
+
+BAUSTEINE = """
+.huelle { max-width: 64rem; margin: 0 auto; padding: 16px; }
+.karte { padding: 16px; margin-bottom: 14px; }
+
+h1 { font-size: 1.5rem; margin: 0 0 2px; letter-spacing: -.01em; }
+h2 {
+  font-size: .82rem; margin: 0 0 12px; letter-spacing: .09em;
+  text-transform: uppercase; color: var(--leise);
+}
+.leise { color: var(--leise); font-size: .92rem; }
+
+/* Jede Zeile darf umbrechen, und jedes Kind darf schrumpfen. Ohne
+   min-width:0 wächst ein <select> auf die Breite seiner längsten Option
+   und schiebt die ganze Seite quer — genau das war der Fehler. */
+.kopf { display: flex; flex-wrap: wrap; gap: 10px 12px; align-items: flex-end; }
+.kopf > .feld { flex: 1 1 11rem; min-width: 0; }
+.kopf > .feld.schmal { flex: 1 1 7rem; }
+.kopf > button { flex: 0 0 auto; }
+.feld > select, .feld > input { width: 100%; }
+select { text-overflow: ellipsis; }
+
+button.tat {
+  background: var(--petrol); border-color: transparent;
+  color: var(--grund); font-weight: 650;
+}
+button.still { background: transparent; }
+button:hover { border-color: var(--petrol); }
+
+.reihe {
+  display: flex; flex-wrap: wrap; gap: 8px 12px;
+  align-items: flex-start; justify-content: space-between;
+}
+li.posten .reihe > :first-child { flex: 1 1 16rem; min-width: 0; }
+li.posten .reihe > :last-child { flex: 0 0 auto; text-align: right; }
+header .reihe, #kopfzahlen .reihe { align-items: center; }
+.werkzeuge { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+.werkzeuge label { margin: 0; }
+.werkzeuge select, .werkzeuge button { min-height: 38px; }
+
+.lage {
+  display: inline-flex; align-items: center; gap: 8px; font-weight: 700;
+  padding: 6px 16px; border-radius: 999px; border: 2px solid currentColor;
+  max-width: 100%;
+}
+.ROT { color: var(--terrakotta); }
+.GELB { color: var(--ocker); }
+.GRUEN, .ERLEDIGT { color: var(--petrol); }
+
+ul { margin: 0; padding: 0; }
+li.posten {
+  list-style: none; border-left: 5px solid var(--kante);
+  border-radius: 10px; padding: 11px 13px; margin-bottom: 8px;
+  background: var(--gruen-feld); overflow-wrap: anywhere;
+}
+li.ROT { border-left-color: var(--terrakotta); background: var(--rot-feld); }
+li.GELB { border-left-color: var(--ocker); background: var(--gelb-feld); }
+li.GRUEN, li.ERLEDIGT { border-left-color: var(--petrol); background: var(--gruen-feld); }
+
+.titel { font-weight: 650; }
+.mittel { font-size: .9rem; color: var(--leise); }
+.frist { font-variant-numeric: tabular-nums; font-weight: 700; white-space: nowrap; }
+
+.breit { overflow-x: auto; }
+table { width: 100%; border-collapse: collapse; font-variant-numeric: tabular-nums; }
+th, td { text-align: left; padding: 6px 8px; border-bottom: 1px solid var(--kante); }
+td.zahl, th.zahl { text-align: right; white-space: nowrap; }
+
+.befund {
+  font-size: .9rem; border-left: 4px solid var(--ocker);
+  padding-left: 11px; margin-bottom: 9px; color: var(--leise);
+  overflow-wrap: anywhere;
+}
+
+.toast {
+  position: fixed; inset-block-end: 16px; inset-inline: 16px;
+  max-width: 34rem; margin-inline: auto; padding: 12px 16px;
+  display: flex; gap: 12px; align-items: center; justify-content: space-between;
+  flex-wrap: wrap;
+}
+.toast button { min-height: 38px; }
+
+body[data-rolle="LESER"] button.tat:not(#laden):not(#rechnen) { display: none; }
+body:not([data-rolle="LEITUNG"]) #vermerke button { display: none; }
+
+@media (prefers-reduced-motion: no-preference) {
+  .toast { animation: hoch .2s ease-out; }
+  @keyframes hoch { from { transform: translateY(8px); opacity: 0; } }
+}
+"""
+
+_KOPF = """<!doctype html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<link rel="icon" href="FAVICON_HIER">
+<title>Taktgeber</title>
+<style>"""
+
+_SEITE_MARKUP = """
+</style>
+</head>
+<body>
+<div class="huelle">
+
+<p class="karte glas" id="offlineband" role="status" hidden
+   style="border-color:var(--ocker);background:var(--gelb-feld);font-weight:650">
+  <span id="offlinetext"></span>
+  <button class="still" id="nachreichen" type="button"
+          style="margin-left:10px;min-height:38px">Jetzt nachreichen</button>
+</p>
+
+<header class="karte glas">
+  <div class="reihe">
+    <div>
+      <h1>Taktgeber</h1>
+      <p class="leise" id="unterzeile" style="margin:0">Prophylaxe und Fütterung je Herde</p>
+    </div>
+    <div class="werkzeuge">
+      <span class="leise" id="wer"></span>
+      <label for="sprache" class="leise">Sprache</label>
+      <select id="sprache">
+        <option value="de">Deutsch</option>
+        <option value="fr">Français</option>
+      </select>
+      <button class="still" id="thema" type="button">Ansicht wechseln</button>
+      <button class="still" id="abmelden" type="button">Abmelden</button>
+    </div>
+  </div>
+  <div class="kopf" style="margin-top:14px">
+    <div class="feld"><label for="herde">Herde</label><select id="herde"></select></div>
+    <div class="feld"><label for="stichtag">Stichtag</label>
+      <input id="stichtag" type="date"></div>
+    <div class="feld schmal"><label for="vorrat">Futtervorrat (kg)</label>
+      <input id="vorrat" type="number" min="0" step="10" placeholder="optional"></div>
+    <button class="tat" id="laden" type="button">Anzeigen</button>
+  </div>
+</header>
+
+<p id="zustand" class="karte glas" role="status">Lade …</p>
+
+<section class="karte glas" id="kopfzahlen" hidden>
+  <div class="reihe">
+    <span class="lage" id="lage"></span>
+    <span class="leise" id="alter"></span>
+  </div>
+  <p class="leise" id="phase" style="margin:8px 0 0"></p>
+</section>
+
+<section class="karte glas" id="sperre" hidden>
+  <h2>Wartezeit</h2>
+  <p id="sperrtext" style="margin:0;font-weight:650"></p>
+  <ul id="sperrliste" style="margin-top:10px"></ul>
+</section>
+
+<section class="karte glas" id="futter" hidden>
+  <h2>Futter</h2>
+  <p id="futtertext" style="margin:0"></p>
+  <p class="leise" id="futterherkunft" style="margin:4px 0 0"></p>
+</section>
+
+<section class="karte glas" id="block-ueberfaellig" hidden>
+  <h2>Überfällig</h2><ul></ul></section>
+<section class="karte glas" id="block-heute" hidden><h2>Jetzt dran</h2><ul></ul></section>
+<section class="karte glas" id="block-bestellen" hidden>
+  <h2>Jetzt besorgen</h2>
+  <p class="leise" style="margin:-8px 0 10px">Vorlauf läuft — muss da sein,
+     bevor der Tag kommt.</p>
+  <ul></ul>
+</section>
+<section class="karte glas" id="block-demnaechst" hidden><h2>Demnächst</h2><ul></ul></section>
+<section class="karte glas" id="block-erledigt" hidden>
+  <h2>Zuletzt erledigt</h2><ul></ul></section>
+
+<section class="karte glas" id="block-vermerke" hidden>
+  <h2>Zu prüfen</h2>
+  <p class="leise" style="margin:-8px 0 10px">Bleibt liegen, bis jemand am
+     Original nachsieht.</p>
+  <ul id="vermerke"></ul>
+</section>
+
+<section class="karte glas">
+  <h2>Mischauftrag</h2>
+  <div class="kopf">
+    <div class="feld schmal"><label for="menge">Menge (kg)</label>
+      <input id="menge" type="number" min="1" step="50" value="500"></div>
+    <div class="feld"><label for="art">Bei Überhang</label>
+      <select id="art">
+        <option value="AUSGLEICH">über den Energieträger ausgleichen</option>
+        <option value="VERBATIM">wie auf dem Blatt rechnen</option>
+        <option value="ANTEILIG">alles anteilig skalieren</option>
+      </select></div>
+    <button class="tat" id="rechnen" type="button">Rechnen</button>
+    <button class="still" id="buchen" type="button" hidden>Als gemischt buchen</button>
+  </div>
+  <div id="mischung" class="breit" style="margin-top:12px"></div>
+</section>
+
+<section class="karte glas">
+  <h2>Abgang buchen</h2>
+  <div class="kopf">
+    <div class="feld schmal"><label for="abgangtiere">Tiere</label>
+      <input id="abgangtiere" type="number" min="1" step="1"></div>
+    <div class="feld"><label for="abgangGrund">Grund</label>
+      <select id="abgangGrund">
+        <option value="VERENDET">verendet</option>
+        <option value="GEKEULT">gekeult</option>
+        <option value="VERKAUFT">verkauft</option>
+        <option value="SONSTIGES">sonstiges</option>
+      </select></div>
+    <div class="feld"><label for="abgangTag">Am</label><input id="abgangTag" type="date"></div>
+    <button class="tat" id="buchen-abgang" type="button">Buchen</button>
+  </div>
+  <p class="leise" style="margin-bottom:0">Verkauft ist kein Verlust — der Grund
+     entscheidet, ob es in die Verlustquote zählt.</p>
+</section>
+
+<section class="karte glas">
+  <h2>Vorfall melden</h2>
+  <div class="kopf">
+    <div class="feld schmal"><label for="vorfallart">Art</label>
+      <select id="vorfallart"><option value="GUMBORO">Gumboro</option></select></div>
+    <div class="feld"><label for="vorfalltag">Festgestellt am</label>
+      <input id="vorfalltag" type="date"></div>
+    <div class="feld"><label for="vorfalltext">Beobachtung</label>
+      <input id="vorfalltext" placeholder="optional"></div>
+    <button class="tat" id="melden" type="button">Melden</button>
+  </div>
+  <p class="leise" style="margin-bottom:0">Das Schema startet am gemeldeten Tag.</p>
+</section>
+
+<section class="karte glas" id="block-befunde" hidden>
+  <h2>Befunde</h2><div id="befunde"></div></section>
+
+<footer class="leise" style="text-align:center;padding:4px 0 24px">
+  <span id="stempel"></span>
+</footer>
+
+</div>
+
+<div class="toast glas" id="toast" hidden>
+  <span id="toasttext"></span>
+  <button type="button" id="undo">Rückgängig</button>
+</div>
+
+<script>
+const $ = (id) => document.getElementById(id);
+"""
+
+_SEITE_SKRIPT = """
 const heute = () => new Date().toISOString().slice(0, 10);
 let bild = null;
 let letzteQuittung = null;
@@ -363,7 +539,7 @@ function zeichen(ampel) {
 }
 function wort(ampel) {
   return txt({ ROT: "überfällig", GELB: "jetzt dran",
-             GRUEN: "geplant", ERLEDIGT: "erledigt" }[ampel]);
+               GRUEN: "geplant", ERLEDIGT: "erledigt" }[ampel]);
 }
 function fenster(t) {
   const kurz = (s) => s.slice(8, 10) + "." + s.slice(5, 7) + ".";
@@ -396,9 +572,10 @@ function zeigeBand() {
   const band = $("offlineband");
   if (!offen.length && navigator.onLine) { band.hidden = true; return; }
   $("offlinetext").textContent = !navigator.onLine
-    ? (offen.length ? "Kein Netz \u00b7 " + offen.length + " Eingabe(n) warten"
-                    : "Kein Netz \u2014 die Seite arbeitet aus dem Zwischenspeicher.")
-    : offen.length + " Eingabe(n) noch nicht beim Server";
+    ? (offen.length
+        ? txt("Kein Netz") + " \\u00b7 " + offen.length + " " + txt("Eingaben warten")
+        : txt("Kein Netz — die Seite arbeitet aus dem Zwischenspeicher."))
+    : offen.length + " " + txt("Eingaben noch nicht beim Server");
   $("nachreichen").hidden = !offen.length || !navigator.onLine;
   band.hidden = false;
 }
@@ -421,10 +598,9 @@ async function nachreichen() {
 }
 
 async function sendeOderMerken(pfad, koerper) {
-  // Geht der Versand nicht durch, wandert die Eingabe in die
-  // Warteschlange statt verloren zu gehen. Möglich ist das nur, weil die
-  // Nummern serverseitig aus dem Inhalt entstehen: zweimal geschickt
-  // wirkt einmal.
+  // Geht der Versand nicht durch, wandert die Eingabe in die Warteschlange
+  // statt verloren zu gehen. Möglich ist das nur, weil die Nummern
+  // serverseitig aus dem Inhalt entstehen: zweimal geschickt wirkt einmal.
   try {
     return await hole(pfad, {
       method: "POST", headers: { "content-type": "application/json" },
@@ -439,9 +615,12 @@ async function sendeOderMerken(pfad, koerper) {
 
 async function hole(pfad, optionen) {
   const antwort = await fetch(pfad, optionen);
-  if (antwort.status === 401) { window.location.href = "/anmelden"; throw new Error("abgemeldet"); }
+  if (antwort.status === 401) {
+    window.location.href = "/anmelden";
+    throw new Error("abgemeldet");
+  }
   const inhalt = await antwort.json();
-  if (!antwort.ok) throw new Error(inhalt.fehler || "Unbekannter Fehler");
+  if (!antwort.ok) throw new Error(inhalt.fehler || txt("Unbekannter Fehler"));
   return inhalt;
 }
 
@@ -478,7 +657,8 @@ function postenZeile(t, mitKnopf) {
   if (t.erledigtAm) {
     const e = document.createElement("div");
     e.className = "mittel";
-    e.textContent = "erledigt am " + t.erledigtAm + (t.lot ? " \\u00b7 Charge " + t.lot : "");
+    e.textContent = txt("erledigt am") + " " + t.erledigtAm
+      + (t.lot ? " \\u00b7 " + txt("Charge") + " " + t.lot : "");
     links.appendChild(e);
   }
   kopf.appendChild(links);
@@ -527,17 +707,18 @@ async function ladeHerden() {
 
 async function lade() {
   $("zustand").hidden = false;
-  $("zustand").textContent = "Lade \\u2026";
+  $("zustand").textContent = txt("Lade …");
   try {
     const ich = await hole("/api/ich");
     $("wer").textContent = ich.name + " \\u00b7 " + ich.tenantId + " \\u00b7 " + ich.rolle;
     document.body.dataset.rolle = ich.rolle;
     const anzahl = await ladeHerden();
     if (!anzahl) {
-      $("zustand").textContent =
-        "Noch keine Herde für diesen Betrieb. Anlegen mit: elevage einstallen \\u2026";
-      ["kopfzahlen", "futter", "block-ueberfaellig", "block-heute", "block-bestellen",
-       "block-demnaechst", "block-erledigt", "block-befunde"].forEach((i) => $(i).hidden = true);
+      $("zustand").textContent = txt("Noch keine Herde für diesen Betrieb.")
+        + " " + txt("Anlegen mit:") + " elevage einstallen …";
+      ["kopfzahlen", "sperre", "futter", "block-ueberfaellig", "block-heute",
+       "block-bestellen", "block-demnaechst", "block-erledigt", "block-vermerke",
+       "block-befunde"].forEach((i) => $(i).hidden = true);
       return;
     }
     const p = new URLSearchParams({
@@ -549,13 +730,14 @@ async function lade() {
     $("zustand").hidden = true;
   } catch (fehler) {
     $("zustand").hidden = false;
-    $("zustand").textContent = txt("Das hat nicht geklappt: ") + fehler.message;
+    $("zustand").textContent = txt("Das hat nicht geklappt:") + " " + fehler.message;
   }
 }
 
 function zeige() {
   $("lage").textContent = zeichen(bild.ampel) + " " + wort(bild.ampel);
   $("lage").className = "lage " + bild.ampel;
+
   const stand = bild.bestand;
   const imStall = stand ? stand.tierzahl : bild.herde.tierzahl;
   const verlust = stand && stand.abgangGesamt
@@ -580,8 +762,9 @@ function zeige() {
     laufend.forEach((s) => {
       const li = document.createElement("li");
       li.className = "posten ROT";
-      li.textContent = s.praeparat + " \u00b7 letzte Gabe " + s.letzteGabe
-        + " \u00b7 " + s.wartezeitTage + " Tage \u00b7 frei ab " + s.freigabeAb;
+      li.textContent = s.praeparat + " \\u00b7 " + txt("letzte Gabe") + " " + s.letzteGabe
+        + " \\u00b7 " + s.wartezeitTage + " " + txt("Tage") + " \\u00b7 "
+        + txt("frei ab") + " " + s.freigabeAb;
       sperrliste.appendChild(li);
     });
   }
@@ -598,7 +781,7 @@ function zeige() {
     $("futtertext").textContent = text;
     $("futterherkunft").textContent = txt(
       f.quelle === "GEMESSEN" ? "Aus dem eigenen Mischprotokoll gerechnet."
-                              : "Richtwert \\u2014 keine Zahl dieses Betriebs.");
+                              : "Richtwert — keine Zahl dieses Betriebs.");
     $("futter").hidden = false;
   } else { $("futter").hidden = true; }
 
@@ -606,11 +789,8 @@ function zeige() {
   fuelle("block-heute", bild.heute, true);
   fuelle("block-bestellen", bild.bestellen, false);
   const schonGenannt = new Set(bild.bestellen.map((t) => t.schrittKey));
-  fuelle(
-    "block-demnaechst",
-    bild.demnaechst.filter((t) => !schonGenannt.has(t.schrittKey)),
-    false
-  );
+  fuelle("block-demnaechst",
+         bild.demnaechst.filter((t) => !schonGenannt.has(t.schrittKey)), false);
   fuelle("block-erledigt", bild.erledigt.slice(-5), false);
 
   const liste = $("vermerke");
@@ -623,7 +803,7 @@ function zeige() {
     const links = document.createElement("div");
     const kopf = document.createElement("div");
     kopf.className = "titel";
-    kopf.textContent = "\u203a " + v.betrifft;
+    kopf.textContent = "\\u203a " + v.betrifft;
     const text = document.createElement("div");
     text.className = "mittel";
     text.textContent = v.text;
@@ -659,6 +839,7 @@ function frageMittel(li, t) {
   kasten.className = "mittelwahl kopf";
   kasten.style.marginTop = "10px";
   const feld = document.createElement("div");
+  feld.className = "feld";
   const beschriftung = document.createElement("label");
   const kennung = "mittel-" + t.schrittKey;
   beschriftung.setAttribute("for", kennung);
@@ -694,35 +875,36 @@ async function quittiere(t, mittel) {
       am: $("stichtag").value, praeparat: mittel,
     });
     if (antwort.gemerkt) {
-      melde("\\u201e" + t.titel + "\\u201c abgehakt \\u2014 wird nachgereicht.", false);
+      melde("\\u201e" + t.titel + "\\u201c " + txt("abgehakt — wird nachgereicht."), false);
       return;
     }
     letzteQuittung = antwort.quittungId;
-    melde("\\u201e" + t.titel + "\\u201c abgehakt.", true);
+    melde("\\u201e" + t.titel + "\\u201c " + txt("abgehakt."), true);
     await lade();
-  } catch (fehler) { melde("Nicht abgehakt: " + fehler.message, false); }
+  } catch (fehler) {
+    melde(txt("Nicht abgehakt:") + " " + fehler.message, false);
+  }
 }
-
-$("undo").onclick = async () => {
-  if (!letzteQuittung) return;
-  await hole("/api/quittung/widerrufen", {
-    method: "POST", headers: { "content-type": "application/json" },
-    body: JSON.stringify({ quittungId: letzteQuittung }),
-  });
-  letzteQuittung = null;
-  $("toast").hidden = true;
-  await lade();
-};
 
 async function hakeAb(v) {
   try {
     await sendeOderMerken("/api/vermerk/abhaken", {
       vermerkId: v.vermerkId, am: $("stichtag").value,
     });
-    melde("Als geprüft abgehakt.", false);
+    melde(txt("Als geprüft abgehakt."), false);
     await lade();
-  } catch (fehler) { melde("Nicht abgehakt: " + fehler.message, false); }
+  } catch (fehler) {
+    melde(txt("Nicht abgehakt:") + " " + fehler.message, false);
+  }
 }
+
+$("undo").onclick = async () => {
+  if (!letzteQuittung) return;
+  await sendeOderMerken("/api/quittung/widerrufen", { quittungId: letzteQuittung });
+  letzteQuittung = null;
+  $("toast").hidden = true;
+  await lade();
+};
 
 async function rechne(buchen) {
   const koerper = {
@@ -736,36 +918,54 @@ async function rechne(buchen) {
       body: JSON.stringify(koerper),
     });
     ziel.replaceChildren();
-    if (!a.auftrag) { ziel.textContent = "Kein Rezept für diese Linie."; return; }
-    const t = document.createElement("table");
-    const kopf = t.createTHead().insertRow();
-    ["Rohstoff", "kg"].forEach((x, i) => {
+    if (!a.auftrag) { ziel.textContent = txt("Kein Rezept für diese Linie."); return; }
+    const tabelle = document.createElement("table");
+    const kopf = tabelle.createTHead().insertRow();
+    [txt("Rohstoff"), "kg"].forEach((x, i) => {
       const th = document.createElement("th");
       th.textContent = x; if (i) th.className = "zahl"; kopf.appendChild(th);
     });
-    const koerperEl = t.createTBody();
+    const rumpf = tabelle.createTBody();
     a.auftrag.zeilen.forEach((z) => {
-      const r = koerperEl.insertRow();
+      const r = rumpf.insertRow();
       r.insertCell().textContent = z.name;
       const c = r.insertCell(); c.textContent = z.kg.toFixed(2); c.className = "zahl";
     });
-    const summe = koerperEl.insertRow();
-    summe.insertCell().textContent = "Ist-Einwaage";
+    const summe = rumpf.insertRow();
+    summe.insertCell().textContent = txt("Ist-Einwaage");
     const sc = summe.insertCell();
     sc.textContent = a.auftrag.istEinwaageKg.toFixed(2); sc.className = "zahl";
     summe.style.fontWeight = "700";
-    ziel.appendChild(t);
+    ziel.appendChild(tabelle);
     a.auftrag.issues.forEach((i) => {
       const p = document.createElement("p"); p.className = "befund"; p.textContent = i;
       ziel.appendChild(p);
     });
     $("buchen").hidden = !a.auftrag.freigegeben || a.auftrag.ausgleich === "VERBATIM";
-    if (buchen) melde(a.gebucht ? "Mischung protokolliert." : "Nicht gebucht.", false);
-  } catch (fehler) { ziel.textContent = txt("Das hat nicht geklappt: ") + fehler.message; }
+    if (buchen) melde(txt(a.gebucht ? "Mischung protokolliert." : "Nicht gebucht."), false);
+  } catch (fehler) {
+    ziel.textContent = txt("Das hat nicht geklappt:") + " " + fehler.message;
+  }
 }
 
 $("rechnen").onclick = () => rechne(false);
 $("buchen").onclick = () => rechne(true).then(lade);
+
+$("buchen-abgang").onclick = async () => {
+  const tiere = Number($("abgangtiere").value);
+  if (!tiere) { melde(txt("Wie viele Tiere?"), false); return; }
+  try {
+    await sendeOderMerken("/api/abgang", {
+      herde: $("herde").value, tiere: tiere,
+      grund: $("abgangGrund").value, am: $("abgangTag").value,
+    });
+    $("abgangtiere").value = "";
+    melde(txt("Gebucht — der Futterbedarf rechnet ab jetzt damit."), false);
+    await lade();
+  } catch (fehler) {
+    melde(txt("Nicht gebucht:") + " " + fehler.message, false);
+  }
+};
 
 $("melden").onclick = async () => {
   try {
@@ -773,24 +973,12 @@ $("melden").onclick = async () => {
       herde: $("herde").value, art: $("vorfallart").value,
       am: $("vorfalltag").value, bemerkung: $("vorfalltext").value || null,
     });
-    melde("Vorfall aufgenommen \\u2014 das Schema steht im Plan.", false);
+    melde(txt("Vorfall aufgenommen — das Schema steht im Plan."), false);
     $("vorfalltext").value = "";
     await lade();
-  } catch (fehler) { melde("Nicht aufgenommen: " + fehler.message, false); }
-};
-
-$("buchen-abgang").onclick = async () => {
-  const tiere = Number($("abgangtiere").value);
-  if (!tiere) { melde("Wie viele Tiere?", false); return; }
-  try {
-    await sendeOderMerken("/api/abgang", {
-      herde: $("herde").value, tiere: tiere,
-      grund: $("abgangGrund").value, am: $("abgangTag").value,
-    });
-    $("abgangtiere").value = "";
-    melde("Gebucht \u2014 der Futterbedarf rechnet ab jetzt damit.", false);
-    await lade();
-  } catch (fehler) { melde("Nicht gebucht: " + fehler.message, false); }
+  } catch (fehler) {
+    melde(txt("Nicht aufgenommen:") + " " + fehler.message, false);
+  }
 };
 
 $("thema").onclick = () => {
@@ -803,13 +991,7 @@ $("abmelden").onclick = async () => {
   window.location.href = "/anmelden";
 };
 
-$("sprache").value = SPRACHE;
-$("sprache").onchange = () => {
-  SPRACHE = $("sprache").value;
-  try { localStorage.setItem("taktgeber-sprache", SPRACHE); } catch (f) {}
-  window.location.reload();   // einmal sauber neu aufbauen statt halb übersetzt
-};
-
+sprachwahl("sprache");
 $("nachreichen").onclick = nachreichen;
 window.addEventListener("online", () => { zeigeBand(); nachreichen(); });
 window.addEventListener("offline", zeigeBand);
@@ -825,8 +1007,9 @@ $("herde").onchange = lade;
 $("stichtag").value = heute();
 $("vorfalltag").value = heute();
 $("abgangTag").value = heute();
+
 fetch("/api/health").then((a) => a.json()).then((h) => {
-  $("stempel").textContent = "Version " + h.version + " \u00b7 " + h.commit;
+  $("stempel").textContent = txt("Version") + " " + h.version + " \\u00b7 " + h.commit;
 }).catch(() => {});
 
 uebersetzeSeite();
@@ -838,48 +1021,25 @@ lade();
 </html>
 """
 
-SEITE = _ROH.replace("FAVICON_HIER", FAVICON).replace("WOERTERBUCH_HIER", woerterbuch())
-
-ANMELDESEITE = """<!doctype html>
-<html lang="de">
-<head>
-<meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Taktgeber — Anmeldung</title>
-<style>
-:root {
-  color-scheme: light dark;
-  --grund: #faf7f2; --karte: #ffffff; --rand: #ddd2c4;
-  --text: #241d16; --leise: #5d5145; --petrol: #12525c; --terrakotta: #9c3d22;
-}
-@media (prefers-color-scheme: dark) {
-  :root { --grund: #191512; --karte: #221d19; --rand: #3d342c;
-          --text: #f3ece4; --leise: #b9aa9a; --petrol: #7fc6d1; --terrakotta: #f09077; }
-}
-* { box-sizing: border-box; }
-body { margin: 0; min-height: 100vh; display: grid; place-items: center;
-       background: var(--grund); color: var(--text);
-       font: 17px/1.55 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; }
-main { width: min(26rem, 100% - 32px); background: var(--karte);
-       border: 1px solid var(--rand); border-radius: 10px; padding: 22px; }
-h1 { font-size: 1.35rem; margin: 0 0 4px; }
+_ANMELDUNG_MARKUP = """
+body { display: grid; place-items: center; padding: 16px; }
+main { width: min(26rem, 100%); padding: 24px; }
+h1 { font-size: 1.4rem; margin: 0 0 4px; letter-spacing: -.01em; }
 p.leise { color: var(--leise); font-size: .92rem; margin-top: 0; }
-label { display: block; font-size: .85rem; color: var(--leise); margin: 14px 0 3px; }
-input, button { font: inherit; width: 100%; min-height: 44px; border-radius: 8px;
-                border: 1px solid var(--rand); background: var(--grund);
-                color: var(--text); padding: 6px 12px; }
-button { margin-top: 18px; background: var(--petrol); border-color: var(--petrol);
-         color: var(--grund); font-weight: 600; cursor: pointer; }
-input:focus-visible, button:focus-visible { outline: 3px solid var(--petrol);
-                                            outline-offset: 2px; }
-#fehler { color: var(--terrakotta); font-weight: 600; margin-top: 14px; }
-[hidden] { display: none !important; }
-body[data-rolle="LESER"] button.tat:not(#laden):not(#rechnen) { display: none; }
-body:not([data-rolle="LEITUNG"]) #vermerke button { display: none; }
+label { margin: 16px 0 4px; }
+input, button { width: 100%; }
+button[type=submit] {
+  margin-top: 20px; background: var(--petrol); border-color: transparent;
+  color: var(--grund); font-weight: 650;
+}
+#fehler { color: var(--terrakotta); font-weight: 650; margin-top: 16px; }
+.fuss { margin-top: 20px; display: flex; align-items: center; gap: 10px; }
+.fuss label { margin: 0; white-space: nowrap; }
+.fuss select { min-height: 38px; flex: 1 1 8rem; min-width: 0; }
 </style>
 </head>
 <body>
-<main>
+<main class="glas">
   <h1>Taktgeber</h1>
   <p class="leise">Prophylaxe und Fütterung je Herde</p>
   <form id="form">
@@ -892,8 +1052,18 @@ body:not([data-rolle="LEITUNG"]) #vermerke button { display: none; }
     <button type="submit">Anmelden</button>
   </form>
   <p id="fehler" role="alert" hidden></p>
+  <div class="fuss">
+    <label for="sprache">Sprache</label>
+    <select id="sprache">
+      <option value="de">Deutsch</option>
+      <option value="fr">Français</option>
+    </select>
+  </div>
 </main>
 <script>
+"""
+
+_ANMELDUNG_SKRIPT = """
 const form = document.getElementById("form");
 const fehler = document.getElementById("fehler");
 form.onsubmit = async (ereignis) => {
@@ -909,32 +1079,33 @@ form.onsubmit = async (ereignis) => {
   });
   if (antwort.ok) { window.location.href = "/"; return; }
   const inhalt = await antwort.json().catch(() => ({}));
-  fehler.textContent = inhalt.fehler || "Anmeldung fehlgeschlagen.";
+  fehler.textContent = txt(inhalt.fehler || "Anmeldung fehlgeschlagen.");
   fehler.hidden = false;
 };
+
+sprachwahl("sprache");
+uebersetzeSeite();
 </script>
 </body>
 </html>
 """
 
-ERSTER_BENUTZER = """<!doctype html>
-<html lang="de">
-<head>
-<meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Taktgeber — noch kein Benutzer</title>
-<style>
-body { margin: 0; min-height: 100vh; display: grid; place-items: center;
-       background: #faf7f2; color: #241d16;
-       font: 17px/1.6 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; }
-main { width: min(34rem, 100% - 32px); background: #fff; border: 1px solid #ddd2c4;
-       border-radius: 10px; padding: 22px; }
-code { display: block; background: #f2ece3; padding: 10px 12px; border-radius: 8px;
-       margin-top: 10px; overflow-x: auto; }
+_ERSTER_MARKUP = """
+body { display: grid; place-items: center; padding: 16px; }
+main { width: min(36rem, 100%); padding: 24px; }
+h1 { font-size: 1.4rem; margin: 0 0 8px; }
+code {
+  display: block; background: var(--glas-stark); border: 1px solid var(--kante);
+  padding: 12px 14px; border-radius: 10px; margin-top: 12px;
+  overflow-x: auto; font-size: .9rem;
+}
+.fuss { margin-top: 20px; display: flex; align-items: center; gap: 10px; }
+.fuss label { margin: 0; white-space: nowrap; }
+.fuss select { min-height: 38px; flex: 1 1 8rem; min-width: 0; }
 </style>
 </head>
 <body>
-<main>
+<main class="glas">
   <h1>Noch kein Benutzer angelegt</h1>
   <p>Ohne Benutzer gibt es keine Anmeldung und damit keinen Zugang. Den ersten
      legst du auf dem Rechner an, auf dem der Taktgeber läuft:</p>
@@ -942,7 +1113,35 @@ code { display: block; background: #f2ece3; padding: 10px 12px; border-radius: 8
        --name "Vorname Nachname" --rolle LEITUNG</code>
   <p>Das Passwort wird dabei abgefragt und steht nicht in der Kommandozeile.
      Danach diese Seite neu laden.</p>
+  <div class="fuss">
+    <label for="sprache">Sprache</label>
+    <select id="sprache">
+      <option value="de">Deutsch</option>
+      <option value="fr">Français</option>
+    </select>
+  </div>
 </main>
+<script>
+"""
+
+_ERSTER_SKRIPT = """
+sprachwahl("sprache");
+uebersetzeSeite();
+</script>
 </body>
 </html>
 """
+
+
+def _baue(*teile: str) -> str:
+    """Zusammensetzen und die beiden Platzhalter einsetzen — einmal je Seite."""
+    return (
+        "".join(teile).replace("FAVICON_HIER", FAVICON).replace("WOERTERBUCH_HIER", woerterbuch())
+    )
+
+
+SEITE = _baue(_KOPF, GRUNDLAGEN, BAUSTEINE, _SEITE_MARKUP, UEBERSETZER, _SEITE_SKRIPT)
+
+ANMELDESEITE = _baue(_KOPF, GRUNDLAGEN, _ANMELDUNG_MARKUP, UEBERSETZER, _ANMELDUNG_SKRIPT)
+
+ERSTER_BENUTZER = _baue(_KOPF, GRUNDLAGEN, _ERSTER_MARKUP, UEBERSETZER, _ERSTER_SKRIPT)

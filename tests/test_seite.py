@@ -75,7 +75,7 @@ def test_undo_statt_confirm_kaskade():
 
 
 def test_alle_drei_zustaende_sind_gebaut():
-    assert "Lade \\u2026" in SEITE  # laden
+    assert 'txt("Lade …")' in SEITE  # laden
     assert "Noch keine Herde für diesen Betrieb" in SEITE  # leer, als Anleitung
     assert "Das hat nicht geklappt" in SEITE  # fehler, mit nächstem Schritt
 
@@ -158,3 +158,36 @@ def test_die_uebersetzungsfunktion_heisst_nicht_t():
     ]
     uebrig = re.findall(r"(?<![A-Za-z0-9_.$])t\(", "\n".join(code))
     assert not uebrig, f"{len(uebrig)} Aufruf(e) der alten Funktion übrig"
+
+
+def test_nichts_darf_die_seite_quer_schieben():
+    """Unter 768 px lief die Seite über: ein <select> wächst auf die Breite
+    seiner längsten Option, wenn sein Kasten nicht schrumpfen darf. Gemessen
+    wurde das im Browser über acht Breiten; hier stehen die Regeln, die es
+    verhindern."""
+    for regel in (
+        "max-width: 100%",  # kein Feld über den Rand
+        ".kopf > .feld { flex: 1 1 11rem; min-width: 0; }",
+        "flex-wrap: wrap",  # Kopfzeile darf umbrechen
+        "text-overflow: ellipsis",  # langer Herdenname wird gekürzt
+        "overflow-wrap: anywhere",  # lange Präparatlisten brechen um
+        ".breit { overflow-x: auto; }",  # nur die Tabelle scrollt, nie die Seite
+    ):
+        assert regel in SEITE, regel
+
+
+def test_glas_hat_einen_rueckweg():
+    """Optik darf die Lesbarkeit nicht kosten: wo der Browser kein
+    backdrop-filter kann oder jemand weniger Transparenz eingestellt hat,
+    werden dieselben Flächen deckend gezeichnet."""
+    assert "backdrop-filter: var(--blur)" in SEITE
+    assert "-webkit-backdrop-filter" in SEITE
+    assert "@supports not (backdrop-filter: blur(1px))" in SEITE
+    assert "prefers-reduced-transparency: reduce" in SEITE
+    assert SEITE.count("--glas: var(--grund)") == 2  # beide Rückwege
+
+
+def test_der_grund_kostet_keine_bytes():
+    """Das Glas braucht etwas zum Durchscheinen — aber kein Bild."""
+    assert "radial-gradient" in SEITE
+    assert "url(" not in SEITE.split("<script>")[0].replace("data:image/svg+xml", "")

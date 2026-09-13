@@ -15,9 +15,11 @@ from elevage.anpassung import normiere_artikel
 from elevage.einstellung import BEKANNT
 from elevage.mischung import baue_mischauftrag
 from elevage.models import (
+    Abgangsgrund,
     Ampel,
     Ausgleichsart,
     Benutzer,
+    Bestandsbewegung,
     Ereignis,
     EreignisArt,
     Herde,
@@ -64,7 +66,13 @@ def _zeile(t: Termin) -> str:
 
 def zeige_tagesbild(bild: Tagesbild) -> None:
     h = bild.herde
-    print(f"\n{h.name} · {h.tierart.value} · {h.tierzahl} Tiere · {h.herde_id}")
+    im_stall = bild.bestand.tierzahl if bild.bestand else h.tierzahl
+    verluste = (
+        f" (von {h.tierzahl}, −{bild.bestand.verluste_prozent:.1f} %)"
+        if (bild.bestand and bild.bestand.abgang_gesamt)
+        else ""
+    )
+    print(f"\n{h.name} · {h.tierart.value} · {im_stall} Tiere{verluste} · {h.herde_id}")
     print(
         f"Stichtag {bild.stichtag:%d.%m.%Y} · Tag {bild.alter_tage} "
         f"· Woche {bild.alter_wochen} · Gesamtlage {bild.ampel.value}"
@@ -224,6 +232,17 @@ def main(argv: list[str] | None = None) -> int:
     _bauplan(es)
     es.add_argument("--schluessel", choices=sorted(BEKANNT))
     es.add_argument("--wert", help="ohne --wert: zurück auf den Blattwert")
+
+    ab = unter.add_parser("abgang", help="Verluste und Abgänge buchen")
+    _bauplan(ab)
+    ab.add_argument("--herde", required=True)
+    ab.add_argument("--tiere", type=int, required=True, help="Anzahl Abgang")
+    ab.add_argument("--am", type=_datum, required=True)
+    ab.add_argument(
+        "--grund", choices=[g.value for g in Abgangsgrund], default=Abgangsgrund.VERENDET.value
+    )
+    ab.add_argument("--bemerkung")
+    ab.add_argument("--nummer", help="Belegnummer (Vorgabe: aus Herde/Datum/Grund)")
 
     pr = unter.add_parser("praeparat", help="Mittel und ihre Wartezeiten")
     _bauplan(pr)
@@ -471,6 +490,32 @@ def main(argv: list[str] | None = None) -> int:
                 wert = gesetzt.get(schluessel)
                 marke = wert if wert else "(Blattwert)"
                 print(f"  {schluessel:34s} {marke:12s} {erklaerung}")
+            return 0
+
+        if a.befehl == "abgang":
+            if archiv.lade_herde(conn, a.betrieb, a.herde) is None:
+                print(f"Unbekannte Herde: {a.herde}")
+                return 1
+            neu = archiv.buche_bewegung(
+                conn,
+                Bestandsbewegung(
+                    tenant_id=a.betrieb,
+                    herde_id=a.herde,
+                    bewegung_id=a.nummer or f"{a.herde}:{a.am.isoformat()}:{a.grund}",
+                    am=a.am,
+                    abgang=a.tiere,
+                    grund=Abgangsgrund(a.grund),
+                    bemerkung=a.bemerkung,
+                ),
+            )
+            print("Gebucht." if neu else "Lag bereits vor — nichts geändert.")
+            bild = betrieb.tagesbild(conn, a.betrieb, a.herde, a.am)
+            if bild.bestand:
+                print(
+                    f"Bestand am {a.am}: {bild.bestand.tierzahl} Tiere "
+                    f"(von {bild.bestand.eingestallt}, "
+                    f"Verluste {bild.bestand.verluste_prozent:.1f} %)"
+                )
             return 0
 
         if a.befehl == "praeparat":

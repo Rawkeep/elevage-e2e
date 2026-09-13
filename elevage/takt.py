@@ -10,10 +10,12 @@ from __future__ import annotations
 from datetime import date
 
 from elevage.anpassung import wirksames_rezept
+from elevage.bestand import rechne_bestand
 from elevage.mischung import baue_mischauftrag
 from elevage.models import (
     Ampel,
     Ausgleichsart,
+    Bestandsbewegung,
     Ereignis,
     Herde,
     Mischauftrag,
@@ -51,9 +53,11 @@ def rechne(
     anpassungen: list[Rezeptanpassung] | None = None,
     vermerke: list[Pruefvermerk] | None = None,
     praeparate: list[Praeparat] | None = None,
+    bewegungen: list[Bestandsbewegung] | None = None,
 ) -> Tagesbild:
     alter = alter_in_tagen(herde, stichtag)
     wochen = alter_in_wochen(alter)
+    stand = rechne_bestand(herde, stichtag, list(bewegungen or []))
     termine = baue_termine(herde, stichtag, quittungen, ereignisse, einstellungen)
 
     ueberfaellig = [t for t in termine if t.ampel is Ampel.ROT]
@@ -91,10 +95,12 @@ def rechne(
         stichtag,
         wochen,
         kurve or richtwert(herde.tierart),
+        tierzahl=stand.tierzahl,
         vorrat_kg=vorrat_kg,
         zusatz_issues=kurven_issues,
     )
     issues.extend(futter.issues)
+    issues.extend(stand.issues)
 
     sperren, sperr_issues = berechne_sperren(
         herde,
@@ -131,6 +137,7 @@ def rechne(
         erledigt=erledigt,
         vermerke=list(vermerke or []),
         sperren=sperren,
+        bestand=stand,
         futter=futter,
         vorfaelle=meine_vorfaelle,
         ampel=ampel,

@@ -17,6 +17,7 @@ von einer gerechneten zu unterscheiden.
 
 from __future__ import annotations
 
+from collections.abc import Callable
 from datetime import date, timedelta
 
 from elevage.models import (
@@ -91,6 +92,7 @@ def aus_mischungen(
     tierzahl: int,
     einstalldatum: date,
     mischungen: list[tuple[date, float]],
+    tierzahl_im_zeitraum: Callable[[date, date], float] | None = None,
 ) -> tuple[Verzehrkurve, list[str]]:
     """Verbrauch zwischen zwei Mischungen ⇒ gemessene Kurve.
 
@@ -114,7 +116,11 @@ def aus_mischungen(
         if tage < MIN_TAGE_JE_MESSUNG:
             uebersprungen += 1
             continue
-        gramm = kg * 1000.0 / tierzahl / tage
+        im_zeitraum = tierzahl_im_zeitraum(von, bis) if tierzahl_im_zeitraum else float(tierzahl)
+        if im_zeitraum <= 0:
+            uebersprungen += 1
+            continue
+        gramm = kg * 1000.0 / im_zeitraum / tage
         if gramm <= 0 or gramm > MAX_GRAMM_JE_TIER_TAG:
             uebersprungen += 1
             continue
@@ -163,6 +169,7 @@ def prognose(
     woche: int,
     kurve: Verzehrkurve,
     *,
+    tierzahl: int | None = None,
     vorrat_kg: float | None = None,
     horizont_tage: int = PROGNOSE_HORIZONT_TAGE,
     zusatz_issues: list[str] | None = None,
@@ -188,7 +195,8 @@ def prognose(
     if punkt.quelle is Quelle.RICHTWERT:
         issues.append(RICHTWERT_HINWEIS)
 
-    je_tag = round(punkt.gramm_je_tier_tag * herde.tierzahl / 1000.0, 2)
+    im_stall = herde.tierzahl if tierzahl is None else tierzahl
+    je_tag = round(punkt.gramm_je_tier_tag * im_stall / 1000.0, 2)
     bis_horizont = round(je_tag * horizont_tage, 2)
 
     reicht_bis: date | None = None

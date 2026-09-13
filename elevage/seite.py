@@ -201,6 +201,25 @@ body:not([data-rolle="LEITUNG"]) #vermerke button { display: none; }
 </section>
 
 <section class="karte">
+  <h2>Abgang buchen</h2>
+  <div class="kopf">
+    <div><label for="abgangtiere">Tiere</label>
+      <input id="abgangtiere" type="number" min="1" step="1" style="width:6rem"></div>
+    <div><label for="abgangGrund">Grund</label>
+      <select id="abgangGrund">
+        <option value="VERENDET">verendet</option>
+        <option value="GEKEULT">gekeult</option>
+        <option value="VERKAUFT">verkauft</option>
+        <option value="SONSTIGES">sonstiges</option>
+      </select></div>
+    <div><label for="abgangTag">Am</label><input id="abgangTag" type="date"></div>
+    <button class="tat" id="buchen-abgang" type="button">Buchen</button>
+  </div>
+  <p class="leise" style="margin-bottom:0">Verkauft ist kein Verlust — der Grund
+     entscheidet, ob es in die Verlustquote zählt.</p>
+</section>
+
+<section class="karte">
   <h2>Vorfall melden</h2>
   <div class="kopf">
     <div><label for="vorfallart">Art</label>
@@ -576,6 +595,23 @@ $("melden").onclick = async () => {
   } catch (fehler) { melde("Nicht aufgenommen: " + fehler.message, false); }
 };
 
+$("buchen-abgang").onclick = async () => {
+  const tiere = Number($("abgangtiere").value);
+  if (!tiere) { melde("Wie viele Tiere?", false); return; }
+  try {
+    await hole("/api/abgang", {
+      method: "POST", headers: { "content-type": "application/json" },
+      body: JSON.stringify({
+        herde: $("herde").value, tiere: tiere,
+        grund: $("abgangGrund").value, am: $("abgangTag").value,
+      }),
+    });
+    $("abgangtiere").value = "";
+    melde("Gebucht \u2014 der Futterbedarf rechnet ab jetzt damit.", false);
+    await lade();
+  } catch (fehler) { melde("Nicht gebucht: " + fehler.message, false); }
+};
+
 $("thema").onclick = () => {
   const jetzt = document.documentElement.dataset.thema;
   document.documentElement.dataset.thema = jetzt === "dunkel" ? "hell" : "dunkel";
@@ -590,6 +626,7 @@ $("laden").onclick = lade;
 $("herde").onchange = lade;
 $("stichtag").value = heute();
 $("vorfalltag").value = heute();
+$("abgangTag").value = heute();
 lade();
 </script>
 </body>

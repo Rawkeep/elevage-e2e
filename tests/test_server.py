@@ -379,3 +379,36 @@ def test_ein_mittel_ohne_jede_zahl_wird_abgewiesen(dienst):
     with pytest.raises(HTTPError) as fehler:
         Sitzung(dienst, "leitung").sende("/api/praeparat", {"name": "COVIT"})
     assert fehler.value.code == 400
+
+
+def test_abgang_senkt_den_bestand_und_hebt_den_verzehr(dienst):
+    stall = Sitzung(dienst, "stall")
+    vorher = stall.hole(f"/api/tagesbild?herde=H1&stichtag={STICHTAG}")
+    assert vorher["bestand"]["tierzahl"] == 1000
+
+    stall.sende(
+        "/api/abgang",
+        {"herde": "H1", "tiere": 200, "grund": "VERENDET", "am": "2026-03-05"},
+    )
+    nachher = stall.hole(f"/api/tagesbild?herde=H1&stichtag={STICHTAG}")
+    assert nachher["bestand"]["tierzahl"] == 800
+    assert nachher["bestand"]["verlusteProzent"] == 20.0
+    assert nachher["futter"]["bedarfJeTagKg"] < vorher["futter"]["bedarfJeTagKg"]
+    assert any("Verluste seit dem Einstallen" in i for i in nachher["issues"])
+
+
+def test_derselbe_abgang_zweimal_gebucht_zaehlt_einmal(dienst):
+    stall = Sitzung(dienst, "stall")
+    daten = {"herde": "H1", "tiere": 20, "grund": "VERENDET", "am": "2026-03-05"}
+    assert stall.sende("/api/abgang", daten)["neu"] is True
+    assert stall.sende("/api/abgang", daten)["neu"] is False
+    bild = stall.hole(f"/api/tagesbild?herde=H1&stichtag={STICHTAG}")
+    assert bild["bestand"]["tierzahl"] == 980
+
+
+def test_ein_leser_bucht_keine_abgaenge(dienst):
+    with pytest.raises(HTTPError) as fehler:
+        Sitzung(dienst, "leser").sende(
+            "/api/abgang", {"herde": "H1", "tiere": 5, "am": "2026-03-05"}
+        )
+    assert fehler.value.code == 403

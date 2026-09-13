@@ -21,7 +21,9 @@ from pathlib import Path
 
 from elevage.einstellung import BEKANNT
 from elevage.models import (
+    Abgangsgrund,
     Benutzer,
+    Bestandsbewegung,
     Ereignis,
     EreignisArt,
     Herde,
@@ -177,6 +179,24 @@ MIGRATIONEN: list[tuple[int, str]] = [
         );
 
         ALTER TABLE quittung ADD COLUMN praeparat TEXT;
+        """,
+    ),
+    (
+        7,
+        """
+        CREATE TABLE bestandsbewegung (
+            tenant_id   TEXT NOT NULL,
+            bewegung_id TEXT NOT NULL,
+            herde_id    TEXT NOT NULL,
+            am          TEXT NOT NULL,
+            abgang      INTEGER NOT NULL DEFAULT 0 CHECK (abgang >= 0),
+            zugang      INTEGER NOT NULL DEFAULT 0 CHECK (zugang >= 0),
+            grund       TEXT NOT NULL DEFAULT 'VERENDET',
+            bemerkung   TEXT,
+            PRIMARY KEY (tenant_id, bewegung_id)
+        );
+
+        CREATE INDEX bewegung_nach_herde ON bestandsbewegung (tenant_id, herde_id, am);
         """,
     ),
 ]
@@ -590,6 +610,51 @@ def einstellungen_fuer(conn: sqlite3.Connection, tenant_id: str) -> dict[str, st
             "SELECT schluessel, wert FROM einstellung WHERE tenant_id = ?", (tenant_id,)
         )
     }
+
+
+# --- Bestandsbewegungen -------------------------------------------------
+
+
+def buche_bewegung(conn: sqlite3.Connection, bewegung: Bestandsbewegung) -> bool:
+    """Abgang oder Zugang festhalten. Wie die Quittung idempotent über die Nummer."""
+    cur = conn.execute(
+        "INSERT OR IGNORE INTO bestandsbewegung (tenant_id, bewegung_id, herde_id, am,"
+        " abgang, zugang, grund, bemerkung) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+        (
+            bewegung.tenant_id,
+            bewegung.bewegung_id,
+            bewegung.herde_id,
+            bewegung.am.isoformat(),
+            bewegung.abgang,
+            bewegung.zugang,
+            bewegung.grund.value,
+            bewegung.bemerkung,
+        ),
+    )
+    conn.commit()
+    return cur.rowcount == 1
+
+
+def bewegungen_fuer(
+    conn: sqlite3.Connection, tenant_id: str, herde_id: str
+) -> list[Bestandsbewegung]:
+    return [
+        Bestandsbewegung(
+            tenant_id=z["tenant_id"],
+            herde_id=z["herde_id"],
+            bewegung_id=z["bewegung_id"],
+            am=date.fromisoformat(z["am"]),
+            abgang=z["abgang"],
+            zugang=z["zugang"],
+            grund=Abgangsgrund(z["grund"]),
+            bemerkung=z["bemerkung"],
+        )
+        for z in conn.execute(
+            "SELECT * FROM bestandsbewegung WHERE tenant_id = ? AND herde_id = ?"
+            " ORDER BY am, bewegung_id",
+            (tenant_id, herde_id),
+        )
+    ]
 
 
 # --- Präparate ----------------------------------------------------------

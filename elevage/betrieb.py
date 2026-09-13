@@ -12,6 +12,7 @@ from datetime import date
 
 from elevage import archiv
 from elevage.anpassung import wirksames_rezept
+from elevage.bestand import mittlere_tierzahl
 from elevage.einstellung import ausgleichsart
 from elevage.mischung import baue_mischauftrag, vermerk_text
 from elevage.models import (
@@ -43,8 +44,13 @@ def verzehrkurve(
     """Die Kurve dieses Betriebs: gemessen wo möglich, Richtwert wo nötig."""
     herde = _herde(conn, tenant_id, herde_id)
     mischungen = archiv.mischungen_fuer(conn, tenant_id, herde_id)
+    bewegungen = archiv.bewegungen_fuer(conn, tenant_id, herde_id)
     gemessen, issues = aus_mischungen(
-        herde.tierart, herde.tierzahl, herde.einstalldatum, mischungen
+        herde.tierart,
+        herde.tierzahl,
+        herde.einstalldatum,
+        mischungen,
+        lambda von, bis: mittlere_tierzahl(herde, von, bis, bewegungen),
     )
     if not gemessen.punkte:
         issues.append(
@@ -77,6 +83,7 @@ def tagesbild(
         anpassungen=archiv.anpassungen_fuer(conn, tenant_id),
         vermerke=archiv.vermerke_fuer(conn, tenant_id),
         praeparate=archiv.praeparate_fuer(conn, tenant_id),
+        bewegungen=archiv.bewegungen_fuer(conn, tenant_id, herde_id),
     )
 
 

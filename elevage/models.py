@@ -203,6 +203,41 @@ class Dauerregel(_Basis):
     hinweis: str | None = None
 
 
+class Abgangsgrund(str, Enum):
+    """Warum Tiere den Bestand verlassen. Verendet ist nicht verkauft."""
+
+    VERENDET = "VERENDET"
+    GEKEULT = "GEKEULT"
+    VERKAUFT = "VERKAUFT"
+    SONSTIGES = "SONSTIGES"
+
+
+class Bestandsbewegung(_Basis):
+    """Ein Zu- oder Abgang an einem Tag. Wie die Quittung ein Ereignis."""
+
+    tenant_id: str
+    herde_id: str
+    bewegung_id: str
+    am: date
+    abgang: int = Field(default=0, ge=0)
+    zugang: int = Field(default=0, ge=0)
+    grund: Abgangsgrund = Abgangsgrund.VERENDET
+    bemerkung: str | None = None
+
+
+class Bestand(_Basis):
+    """Wie viele Tiere an einem Stichtag im Stall stehen."""
+
+    herde_id: str
+    stichtag: date
+    eingestallt: int
+    abgang_gesamt: int
+    zugang_gesamt: int
+    tierzahl: int
+    verluste_prozent: float
+    issues: list[str] = Field(default_factory=list)
+
+
 class Praeparat(_Basis):
     """Ein Mittel und seine Wartezeit — die Zahl steht auf der Packung.
 
@@ -375,5 +410,6 @@ class Tagesbild(_Basis):
     vorfaelle: list[Ereignis] = Field(default_factory=list)
     vermerke: list[Pruefvermerk] = Field(default_factory=list)
     sperren: list[Sperrfenster] = Field(default_factory=list)
+    bestand: Bestand | None = None
     ampel: Ampel = Ampel.GRUEN
     issues: list[str] = Field(default_factory=list)

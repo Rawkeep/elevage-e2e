@@ -39,7 +39,9 @@ from elevage.anmeldung import (
     token_hash,
 )
 from elevage.models import (
+    Abgangsgrund,
     Ausgleichsart,
+    Bestandsbewegung,
     Ereignis,
     EreignisArt,
     Praeparat,
@@ -274,6 +276,8 @@ def baue_handler(db: Path | None) -> type[BaseHTTPRequestHandler]:
                     self._vermerk(daten)
                 elif teile.path == "/api/praeparat":
                     self._praeparat(daten)
+                elif teile.path == "/api/abgang":
+                    self._abgang(daten)
                 else:
                     raise _Fehler(404, "Unbekannter Pfad")
             except _Fehler as fehler:
@@ -365,6 +369,32 @@ def baue_handler(db: Path | None) -> type[BaseHTTPRequestHandler]:
             self._json(
                 200, {"kurve": kurve.model_dump(by_alias=True, mode="json"), "issues": issues}
             )
+
+        def _abgang(self, daten: dict[str, Any]) -> None:
+            sitzung = self._darf(SCHREIBENDE_ROLLEN)
+            herde = _pflicht(daten, "herde")
+            am = _datum(daten.get("am"))
+            tiere = int(_pflicht(daten, "tiere"))
+            if tiere <= 0:
+                raise _Fehler(400, "Anzahl muss größer als 0 sein")
+            grund = Abgangsgrund(daten.get("grund") or "VERENDET")
+            with self._mit_db() as conn:
+                if archiv.lade_herde(conn, sitzung.tenant_id, herde) is None:
+                    raise _Fehler(404, f"Unbekannte Herde: {herde}")
+                neu = archiv.buche_bewegung(
+                    conn,
+                    Bestandsbewegung(
+                        tenant_id=sitzung.tenant_id,
+                        herde_id=herde,
+                        bewegung_id=daten.get("nummer")
+                        or f"{herde}:{am.isoformat()}:{grund.value}",
+                        am=am,
+                        abgang=tiere,
+                        grund=grund,
+                        bemerkung=daten.get("bemerkung"),
+                    ),
+                )
+            self._json(200, {"neu": neu})
 
         def _praeparate(self) -> None:
             sitzung = self._sitzung()

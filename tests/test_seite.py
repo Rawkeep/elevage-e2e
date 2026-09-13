@@ -103,3 +103,10 @@ def test_beim_abhaken_wird_nach_dem_mittel_gefragt():
 def test_die_wartezeit_hat_einen_eigenen_kasten():
     assert 'id="sperre"' in SEITE
     assert "gesperrt bis" in SEITE
+
+
+def test_abgaenge_lassen_sich_buchen():
+    """Ohne sie rechnet der Futterbedarf auf Tiere, die nicht mehr da sind."""
+    assert "Abgang buchen" in SEITE
+    assert "/api/abgang" in SEITE
+    assert "Verkauft ist kein Verlust" in SEITE

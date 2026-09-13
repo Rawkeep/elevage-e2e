@@ -1,8 +1,7 @@
 """Der Versionsstempel: eine Quelle, nicht zwei."""
 
+import re
 from pathlib import Path
-
-import tomllib
 
 from elevage.version import UNBEKANNT, commit, paketversion, stempel
 
@@ -10,10 +9,16 @@ WURZEL = Path(__file__).resolve().parents[1]
 
 
 def test_die_version_steht_nur_im_pyproject():
-    """Zwei Versionsangaben laufen garantiert auseinander."""
-    with (WURZEL / "pyproject.toml").open("rb") as datei:
-        erwartet = tomllib.load(datei)["project"]["version"]
-    assert paketversion() in (erwartet, UNBEKANNT)
+    """Zwei Versionsangaben laufen garantiert auseinander.
+
+    Gelesen wird mit einer Regel statt mit `tomllib` — das gibt es erst ab
+    Python 3.11, und das Paket verspricht 3.10. Ein Test, der die
+    Versionszusage des Pakets selbst bricht, ist ein schlechter Test.
+    """
+    text = (WURZEL / "pyproject.toml").read_text(encoding="utf-8")
+    treffer = re.search(r'^version\s*=\s*"([^"]+)"', text, re.M)
+    assert treffer, "Keine Version im pyproject gefunden"
+    assert paketversion() in (treffer.group(1), UNBEKANNT)
 
 
 def test_ohne_commit_wird_nichts_erfunden(monkeypatch):

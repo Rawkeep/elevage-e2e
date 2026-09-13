@@ -240,15 +240,18 @@ def baue_handler(db: Path | None) -> type[BaseHTTPRequestHandler]:
             teile = urlparse(self.path)
             frage = {k: v[0] for k, v in parse_qs(teile.query).items()}
             try:
+                if teile.path == "/api/health":
+                    # GANZ oben: ohne Anmeldung, weil ein Wächter keine hat,
+                    # und VOR der Benutzerprüfung — auf einer frischen
+                    # Installation gibt es noch keinen Benutzer, und genau
+                    # dann fragt ein Wächter zuerst. Steht die Route weiter
+                    # unten, bekommt er die Einrichtungsseite als HTML.
+                    self._health()
+                    return
                 with self._mit_db() as conn:
                     leer = archiv.zaehle_benutzer(conn) == 0
                 if leer:
                     self._sende(200, ERSTER_BENUTZER.encode(), "text/html; charset=utf-8")
-                    return
-                if teile.path == "/api/health":
-                    # Ohne Anmeldung, weil ein Wächter sie nicht hat — und
-                    # ohne jede Betriebszahl, damit sie nichts verrät.
-                    self._health()
                     return
                 if teile.path == "/sw.js":
                     # Muss von der Wurzel kommen, sonst darf er nur /sw/ steuern.

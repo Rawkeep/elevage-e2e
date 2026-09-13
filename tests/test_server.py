@@ -470,3 +470,23 @@ def test_die_csp_erlaubt_das_eigene_zeichen_und_sonst_nichts(angemeldet):
     assert "default-src 'none'" in csp
     assert "worker-src 'self'" in csp
     assert "http" not in csp  # keine fremde Quelle erlaubt
+
+
+def test_health_antwortet_auch_ohne_jeden_benutzer(tmp_path):
+    """Auf einer frischen Installation gibt es noch kein Konto — und genau
+    dann fragt ein Wächter zuerst. Stand die Route zu weit unten, bekam er
+    die Einrichtungsseite als HTML. Gefunden hat das der CI-Lauf."""
+    server = starte(port=0, db=tmp_path / "leer.db")
+    faden = threading.Thread(target=server.serve_forever, daemon=True)
+    faden.start()
+    try:
+        basis = f"http://127.0.0.1:{server.server_address[1]}"
+        with urlopen(basis + "/api/health", timeout=10) as antwort:
+            assert antwort.headers["Content-Type"] == "application/json"
+            assert json.loads(antwort.read())["status"] == "ok"
+        # Die Startseite zeigt weiterhin die Einrichtung, nicht die App.
+        with urlopen(basis + "/", timeout=10) as antwort:
+            assert "Noch kein Benutzer angelegt" in antwort.read().decode()
+    finally:
+        server.shutdown()
+        server.server_close()

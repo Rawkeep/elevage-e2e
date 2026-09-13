@@ -229,6 +229,20 @@ def quittiere(conn: sqlite3.Connection, quittung: Quittung) -> bool:
     return cur.rowcount == 1
 
 
+def widerrufe_quittung(conn: sqlite3.Connection, tenant_id: str, quittung_id: str) -> bool:
+    """Abhaken rückgängig machen — das Gegenstück zum Undo in der Oberfläche.
+
+    Die Briefing-Regel lautet Undo statt Nachfragen: sofort ausführen und
+    zurücknehmbar machen, statt eine Bestätigungskaskade zu bauen.
+    """
+    cur = conn.execute(
+        "DELETE FROM quittung WHERE tenant_id = ? AND quittung_id = ?",
+        (tenant_id, quittung_id),
+    )
+    conn.commit()
+    return cur.rowcount == 1
+
+
 def quittungen_fuer(conn: sqlite3.Connection, tenant_id: str, herde_id: str) -> list[Quittung]:
     zeilen = conn.execute(
         "SELECT * FROM quittung WHERE tenant_id = ? AND herde_id = ?"

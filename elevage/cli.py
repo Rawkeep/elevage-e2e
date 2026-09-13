@@ -22,6 +22,7 @@ from elevage.models import (
     Tierart,
 )
 from elevage.rezepte import REZEPTE, rezept_nach_key
+from elevage.server import STANDARD_PORT, laufe
 from elevage.takt import mischauftrag_fuer, rechne
 
 ERLEDIGT_AB_TAGEN = 10
@@ -181,6 +182,11 @@ def main(argv: list[str] | None = None) -> int:
     mi.add_argument("--kg", type=float, required=True)
     mi.add_argument("--normieren", action="store_true")
 
+    ui = unter.add_parser("ui", help="Lokale Oberfläche starten")
+    ui.add_argument("--db", type=Path)
+    ui.add_argument("--port", type=int, default=STANDARD_PORT)
+    ui.add_argument("--host", default=None, help="nur mit ELEVAGE_ALLOW_REMOTE")
+
     unter.add_parser("demo", help="Drei Szenarien ohne Datenbank")
 
     a = p.parse_args(argv)
@@ -192,6 +198,9 @@ def main(argv: list[str] | None = None) -> int:
         return 0
     if a.befehl == "demo":
         return _demo()
+    if a.befehl == "ui":
+        laufe(a.port, a.db, a.host)
+        return 0
 
     with archiv.oeffne(a.db) as conn:
         if a.befehl == "einstallen":

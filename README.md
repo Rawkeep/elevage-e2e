@@ -25,6 +25,8 @@ python3 -m elevage.cli vorfall --betrieb hof --herde H1 --art GUMBORO --am 2026-
 python3 -m elevage.cli ausstallen --betrieb hof --herde H1   # Historie bleibt
 
 python3 -m elevage.cli mischung --rezept PONTE_AB_21 --kg 1000 [--normieren]
+
+python3 -m elevage.cli ui                    # Oberfläche auf 127.0.0.1:8791
 ```
 
 Die Datenbank liegt unter `~/.elevage/elevage.db`; `--db` oder die
@@ -47,6 +49,8 @@ ein Wächter-Job daran hängen, ohne die Ausgabe zu lesen.
 | `verzehr.py` | Verzehrkurve: gemessen aus dem Mischprotokoll, sonst Richtwert |
 | `archiv.py` | SQLite (Stdlib): Herden, Quittungen, Mischprotokoll, Vorfälle |
 | `betrieb.py` | Die Naht: Archiv rein, Tagesbild raus |
+| `seite.py` | Die ganze Oberfläche als ein String — kein Build, kein CDN |
+| `server.py` | Stdlib-HTTP-Server, bindet nur auf localhost |
 | `cli.py` | Dünne Schale, keine eigene Logik |
 
 Datenfluss: `Herde` + `Stichtag` → `plan.schritte_fuer()` (Programm +
@@ -83,6 +87,31 @@ daraus zwei ganz normale Schritte — gleiche Ampel, gleiche Quittung:
 Dazu ohne Ereignis, aus den Rezepten abgeleitet: **Leberschutz von j-1 bis
 j+2 um jeden Futterwechsel** (Tag 57 und Tag 148) — das verlangt der
 NB-Kasten des Junghennen-Blattes, und es steht in keinem Tagesraster.
+
+## Die Oberfläche
+
+`elevage ui` startet einen Stdlib-HTTP-Server auf `127.0.0.1:8791`. Die
+Seite ist **ein String in `seite.py`** — kein Bundler, keine Datei daneben,
+**0 externe Requests** (ein Test hält das fest, die Abnahme misst es am
+echten Netzverkehr).
+
+![Oberfläche, Desktop](taktgeber-desktop.png)
+
+Gestaltet nach dem Architektur-Briefing (Agrar, intern): erdige Töne statt
+Agrar-Grün, 17 px Grundschrift und Touch-Ziele ab 44 px für die Bedienung
+im Stehen und mit Handschuhen, Dark Mode über Tokens, Bewegung nur mit
+`prefers-reduced-motion`. **Farbe trägt nie allein** — jede Ampel hat
+zusätzlich ein Zeichen und ein Wort („! überfällig", „› jetzt dran").
+Abhaken folgt dem Undo-Muster: sofort ausführen, Toast mit „Rückgängig",
+keine Bestätigungskaskade.
+
+### Sicherheit — der offene Punkt
+
+**Es gibt noch keine Anmeldung.** Der Betrieb ist ein Auswahlfeld, keine
+Sicherheitsgrenze. Deshalb bindet der Server ausschließlich auf localhost;
+`ELEVAGE_ALLOW_REMOTE` hebt das auf und warnt dabei. Bevor das Ding im Netz
+steht, braucht es echte Auth (Magic-Link/OIDC, nie eigene Passwort-Krypto)
+— so steht es in der Sicherheits-Checkliste des Briefings.
 
 ## Regeln, die nicht gebrochen werden
 

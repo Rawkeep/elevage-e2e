@@ -19,6 +19,7 @@ from __future__ import annotations
 
 from datetime import date
 
+from elevage.einstellung import VORGABE_DOSIS
 from elevage.models import (
     Ereignis,
     EreignisArt,
@@ -36,13 +37,17 @@ SCHEMA_TAGE = 4
 ERHOLUNG_TAGE = 4
 """Danach der Leberschutz, um die Futteraufnahme wieder anzuschieben."""
 
-DOSIS_JE_LITER = {Tierart.MASTHUHN: "0,5 g/l", Tierart.LEGEHENNE: "1 g/l"}
+DOSIS_JE_LITER = VORGABE_DOSIS
 """Verbatim aus den beiden NB-Kästen — die Blätter nennen zwei Dosen."""
 
 DOSIS_WIDERSPRUCH = (
     "Die Blätter nennen zwei Dosen für dasselbe Mittel: 0,5 g/l (Masthuhn) "
     "und 1 g/l (Junghenne). Beide stehen so im NB-Kasten; hier gilt die des "
-    "eigenen Blattes."
+    "eigenen Blattes, solange der Betrieb nichts anderes eingestellt hat."
+)
+
+DOSIS_VOM_BETRIEB = (
+    "Die Desinfektionsdosis ist eine Einstellung dieses Betriebs, nicht der Wert des Blattes."
 )
 
 DESINFEKTION = ["VIRKON", "VIRUNET"]
@@ -58,13 +63,24 @@ def lebenstag(herde: Herde, tag: date) -> int:
     return (tag - herde.einstalldatum).days + 1
 
 
-def schritte_fuer_vorfall(ereignis: Ereignis, herde: Herde) -> list[Schritt]:
-    """Das Notfallschema als ganz normale Schritte — gleiche Ampel, gleiche Quittung."""
+def schritte_fuer_vorfall(
+    ereignis: Ereignis,
+    herde: Herde,
+    dosis: str | None = None,
+    *,
+    vom_betrieb: bool = False,
+) -> list[Schritt]:
+    """Das Notfallschema als ganz normale Schritte — gleiche Ampel, gleiche Quittung.
+
+    `dosis` überschreibt den Blattwert (Einstellung des Betriebs). Woher die
+    Zahl kommt, steht danach im Befund — eine stillschweigend geänderte Dosis
+    wäre die schlechtere Überraschung.
+    """
     if ereignis.art is not EreignisArt.GUMBORO:
         return []
 
     tag = lebenstag(herde, ereignis.festgestellt_am)
-    dosis = DOSIS_JE_LITER[herde.tierart]
+    gewaehlt = dosis or DOSIS_JE_LITER[herde.tierart]
     kennung = ereignis.ereignis_id
 
     return [
@@ -73,14 +89,14 @@ def schritte_fuer_vorfall(ereignis: Ereignis, herde: Herde) -> list[Schritt]:
             tierart=herde.tierart,
             von_tag=tag,
             bis_tag=tag + SCHEMA_TAGE - 1,
-            titel=f"Gumboro-Schema: Desinfektion {dosis} + Antikokzidium 1 g/l (4 Tage)",
+            titel=f"Gumboro-Schema: Desinfektion {gewaehlt} + Antikokzidium 1 g/l (4 Tage)",
             kategorie=Kategorie.MEDIKATION,
             verabreichung=Verabreichung.TRINKWASSER,
-            praeparate=[f"{' oder '.join(DESINFEKTION)} ({dosis})"]
+            praeparate=[f"{' oder '.join(DESINFEKTION)} ({gewaehlt})"]
             + [f"+ {' oder '.join(ANTIKOKZIDIUM)} (1 g/l)"],
             hinweis=f"Ausgelöst durch Vorfall vom {ereignis.festgestellt_am:%d.%m.%Y}",
             quelle="NB-Kasten des Blattes",
-            issues=[DOSIS_WIDERSPRUCH],
+            issues=[DOSIS_VOM_BETRIEB if vom_betrieb else DOSIS_WIDERSPRUCH],
         ),
         Schritt(
             key=f"NOTFALL_{kennung}_ERHOLUNG",

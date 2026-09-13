@@ -50,8 +50,8 @@ def test_die_kurve_lernt_aus_dem_eigenen_mischprotokoll(conn):
     kurve, _ = verzehrkurve(conn, "hof", "H1")
     gemessen = [p for p in kurve.punkte if p.quelle is Quelle.GEMESSEN]
     assert [p.woche for p in gemessen] == [2, 3]
-    # Ist-Einwaage, nicht Zielmenge: 140 kg Rezept = 141,54 kg im Mischer
-    assert gemessen[0].gramm_je_tier_tag == pytest.approx(20.2, abs=0.1)
+    # Ausgeglichen: 140 kg Ziel sind auch 140 kg im Mischer
+    assert gemessen[0].gramm_je_tier_tag == pytest.approx(20.0, abs=0.1)
 
 
 def test_tagesbild_zieht_quittungen_vorfaelle_und_kurve_zusammen(conn):

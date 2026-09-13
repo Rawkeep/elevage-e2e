@@ -153,11 +153,23 @@ td.zahl, th.zahl { text-align: right; }
 <section class="karte" id="block-demnaechst" hidden><h2>Demnächst</h2><ul></ul></section>
 <section class="karte" id="block-erledigt" hidden><h2>Zuletzt erledigt</h2><ul></ul></section>
 
+<section class="karte" id="block-vermerke" hidden>
+  <h2>Zu prüfen</h2>
+  <p class="leise" style="margin:-6px 0 10px">Bleibt liegen, bis jemand am Original nachsieht.</p>
+  <ul id="vermerke"></ul>
+</section>
+
 <section class="karte">
   <h2>Mischauftrag</h2>
   <div class="kopf">
     <div><label for="menge">Menge (kg)</label>
       <input id="menge" type="number" min="1" step="50" value="500"></div>
+    <div><label for="art">Bei Überhang</label>
+      <select id="art">
+        <option value="AUSGLEICH">über den Energieträger ausgleichen</option>
+        <option value="VERBATIM">wie auf dem Blatt rechnen</option>
+        <option value="ANTEILIG">alles anteilig skalieren</option>
+      </select></div>
     <button class="tat" id="rechnen" type="button">Rechnen</button>
     <button class="still" id="buchen" type="button" hidden>Als gemischt buchen</button>
   </div>
@@ -349,6 +361,32 @@ function zeige() {
   );
   fuelle("block-erledigt", bild.erledigt.slice(-5), false);
 
+  const liste = $("vermerke");
+  liste.replaceChildren();
+  (bild.vermerke || []).forEach((v) => {
+    const li = document.createElement("li");
+    li.className = "posten GELB";
+    const reihe = document.createElement("div");
+    reihe.className = "reihe";
+    const links = document.createElement("div");
+    const kopf = document.createElement("div");
+    kopf.className = "titel";
+    kopf.textContent = "\u203a " + v.betrifft;
+    const text = document.createElement("div");
+    text.className = "mittel";
+    text.textContent = v.text;
+    links.append(kopf, text);
+    const knopf = document.createElement("button");
+    knopf.className = "tat";
+    knopf.type = "button";
+    knopf.textContent = "Geprüft";
+    knopf.onclick = () => hakeAb(v);
+    reihe.append(links, knopf);
+    li.appendChild(reihe);
+    liste.appendChild(li);
+  });
+  $("block-vermerke").hidden = (bild.vermerke || []).length === 0;
+
   const kasten = $("befunde");
   kasten.replaceChildren();
   bild.issues.forEach((i) => {
@@ -387,10 +425,24 @@ $("undo").onclick = async () => {
   await lade();
 };
 
+async function hakeAb(v) {
+  try {
+    await hole("/api/vermerk/abhaken", {
+      method: "POST", headers: { "content-type": "application/json" },
+      body: JSON.stringify({
+        betrieb: $("betrieb").value, vermerkId: v.vermerkId, am: $("stichtag").value,
+      }),
+    });
+    melde("Als geprüft abgehakt.", false);
+    await lade();
+  } catch (fehler) { melde("Nicht abgehakt: " + fehler.message, false); }
+}
+
 async function rechne(buchen) {
   const koerper = {
     betrieb: $("betrieb").value, herde: $("herde").value,
-    kg: Number($("menge").value), am: $("stichtag").value, buchen: !!buchen,
+    kg: Number($("menge").value), am: $("stichtag").value,
+    art: $("art").value, buchen: !!buchen,
   };
   const ziel = $("mischung");
   try {
@@ -422,7 +474,7 @@ async function rechne(buchen) {
       const p = document.createElement("p"); p.className = "befund"; p.textContent = i;
       ziel.appendChild(p);
     });
-    $("buchen").hidden = !a.auftrag.freigegeben;
+    $("buchen").hidden = !a.auftrag.freigegeben || a.auftrag.ausgleich === "VERBATIM";
     if (buchen) melde(a.gebucht ? "Mischung protokolliert." : "Nicht gebucht.", false);
   } catch (fehler) { ziel.textContent = "Das hat nicht geklappt: " + fehler.message; }
 }

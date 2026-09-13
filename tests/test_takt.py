@@ -95,9 +95,18 @@ def test_widersprueche_der_blaetter_erreichen_das_tagesbild():
     assert "Richtwerten" in text  # die Prognose sagt, worauf sie steht
 
 
-def test_mischauftrag_der_laufenden_phase_wird_gesperrt_wenn_noetig():
+def test_mischauftrag_der_laufenden_phase_gleicht_den_ueberhang_aus():
     bild = rechne(herde(), EINSTALL + timedelta(days=200))  # Ponte
     auftrag = mischauftrag_fuer(bild, 1000)
     assert auftrag is not None
-    assert auftrag.freigegeben is False
-    assert auftrag.ist_einwaage_kg == 1067.0
+    assert auftrag.freigegeben is True
+    assert auftrag.ist_einwaage_kg == 1000.0
+    assert auftrag.ausgleich_posten == "MAIS"
+
+
+def test_verbatim_bleibt_verfuegbar_und_ehrlich():
+    from elevage.models import Ausgleichsart
+
+    bild = rechne(herde(), EINSTALL + timedelta(days=200))
+    auftrag = mischauftrag_fuer(bild, 1000, art=Ausgleichsart.VERBATIM)
+    assert auftrag is not None and auftrag.ist_einwaage_kg == 1067.0

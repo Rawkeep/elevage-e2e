@@ -17,9 +17,8 @@ from typing import Any
 from urllib.parse import parse_qs, urlparse
 
 from elevage import archiv, betrieb
-from elevage.models import Ereignis, EreignisArt, Quittung
+from elevage.models import Ausgleichsart, Ereignis, EreignisArt, Quittung
 from elevage.seite import SEITE
-from elevage.takt import mischauftrag_fuer
 
 STANDARD_PORT = 8791
 LOKAL = "127.0.0.1"
@@ -129,6 +128,8 @@ def baue_handler(db: Path | None) -> type[BaseHTTPRequestHandler]:
                     self._vorfall(daten)
                 elif teile.path == "/api/mischung":
                     self._mischung(daten)
+                elif teile.path == "/api/vermerk/abhaken":
+                    self._vermerk(daten)
                 else:
                     raise _Fehler(404, "Unbekannter Pfad")
             except _Fehler as fehler:
@@ -210,6 +211,17 @@ def baue_handler(db: Path | None) -> type[BaseHTTPRequestHandler]:
                 neu = archiv.melde_ereignis(conn, ereignis)
             self._json(200, {"neu": neu, "ereignisId": ereignis.ereignis_id})
 
+        def _vermerk(self, daten: dict[str, Any]) -> None:
+            with self._mit_db() as conn:
+                ok = archiv.hake_vermerk_ab(
+                    conn,
+                    daten.get("betrieb", "standard"),
+                    _pflicht(daten, "vermerkId"),
+                    _datum(daten.get("am")),
+                    daten.get("durch") or "",
+                )
+            self._json(200, {"abgehakt": ok})
+
         def _mischung(self, daten: dict[str, Any]) -> None:
             tenant = daten.get("betrieb", "standard")
             herde = _pflicht(daten, "herde")
@@ -217,24 +229,24 @@ def baue_handler(db: Path | None) -> type[BaseHTTPRequestHandler]:
             kg = float(_pflicht(daten, "kg"))
             if kg <= 0:
                 raise _Fehler(400, "Menge muss größer als 0 sein")
+            roh = daten.get("art")
             with self._mit_db() as conn:
-                bild = betrieb.tagesbild(conn, tenant, herde, am)
-                auftrag = mischauftrag_fuer(bild, kg, normieren=bool(daten.get("normieren")))
+                try:
+                    auftrag, gebucht = betrieb.mischauftrag(
+                        conn,
+                        tenant,
+                        herde,
+                        kg,
+                        am,
+                        art=Ausgleichsart(roh) if roh else None,
+                        buchen=bool(daten.get("buchen")),
+                        nummer=daten.get("nummer"),
+                    )
+                except ValueError as fehler:
+                    raise _Fehler(409, str(fehler)) from fehler
                 if auftrag is None:
                     self._json(200, {"auftrag": None})
                     return
-                gebucht = False
-                if daten.get("buchen"):
-                    if not auftrag.freigegeben:
-                        raise _Fehler(409, "Gesperrter Auftrag wird nicht protokolliert")
-                    gebucht = archiv.protokolliere_mischung(
-                        conn,
-                        tenant,
-                        daten.get("nummer") or f"{herde}:{am.isoformat()}",
-                        herde,
-                        am,
-                        auftrag,
-                    )
             self._json(
                 200,
                 {"auftrag": auftrag.model_dump(by_alias=True, mode="json"), "gebucht": gebucht},

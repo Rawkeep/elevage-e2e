@@ -19,7 +19,16 @@ from contextlib import contextmanager
 from datetime import date
 from pathlib import Path
 
-from elevage.models import Ereignis, EreignisArt, Herde, Quittung, Tierart
+from elevage.einstellung import BEKANNT
+from elevage.models import (
+    Ereignis,
+    EreignisArt,
+    Herde,
+    Pruefvermerk,
+    Quittung,
+    Rezeptanpassung,
+    Tierart,
+)
 
 STANDARD_PFAD = Path(os.environ.get("ELEVAGE_DB", Path.home() / ".elevage" / "elevage.db"))
 
@@ -88,6 +97,38 @@ MIGRATIONEN: list[tuple[int, str]] = [
         );
 
         CREATE INDEX ereignis_nach_herde ON ereignis (tenant_id, herde_id);
+        """,
+    ),
+    (
+        4,
+        """
+        CREATE TABLE rezept_anpassung (
+            tenant_id    TEXT NOT NULL,
+            rezept_key   TEXT NOT NULL,
+            artikel_id   TEXT NOT NULL,
+            kg_je_100    REAL NOT NULL CHECK (kg_je_100 >= 0),
+            grund        TEXT,
+            geaendert_am TEXT NOT NULL,
+            PRIMARY KEY (tenant_id, rezept_key, artikel_id)
+        );
+
+        CREATE TABLE pruefvermerk (
+            tenant_id      TEXT NOT NULL,
+            vermerk_id     TEXT NOT NULL,
+            betrifft       TEXT NOT NULL,
+            text           TEXT NOT NULL,
+            angelegt_am    TEXT NOT NULL,
+            erledigt_am    TEXT,
+            erledigt_durch TEXT,
+            PRIMARY KEY (tenant_id, vermerk_id)
+        );
+
+        CREATE TABLE einstellung (
+            tenant_id TEXT NOT NULL,
+            schluessel TEXT NOT NULL,
+            wert       TEXT NOT NULL,
+            PRIMARY KEY (tenant_id, schluessel)
+        );
         """,
     ),
 ]
@@ -356,6 +397,148 @@ def mischungen_fuer(
         (tenant_id, herde_id),
     )
     return [(date.fromisoformat(z["gemischt_am"]), float(z["ist_kg"])) for z in zeilen]
+
+
+# --- Rezeptanpassungen --------------------------------------------------
+
+
+def setze_anpassung(conn: sqlite3.Connection, anpassung: Rezeptanpassung) -> None:
+    """Menge eines Postens für diesen Betrieb festlegen. 0 kg heißt: entfällt."""
+    conn.execute(
+        "INSERT INTO rezept_anpassung (tenant_id, rezept_key, artikel_id, kg_je_100,"
+        " grund, geaendert_am) VALUES (?, ?, ?, ?, ?, ?)"
+        " ON CONFLICT (tenant_id, rezept_key, artikel_id) DO UPDATE SET"
+        "  kg_je_100=excluded.kg_je_100, grund=excluded.grund,"
+        "  geaendert_am=excluded.geaendert_am",
+        (
+            anpassung.tenant_id,
+            anpassung.rezept_key,
+            anpassung.artikel_id,
+            anpassung.kg_je_100,
+            anpassung.grund,
+            anpassung.geaendert_am.isoformat(),
+        ),
+    )
+    conn.commit()
+
+
+def loesche_anpassung(
+    conn: sqlite3.Connection, tenant_id: str, rezept_key: str, artikel_id: str
+) -> bool:
+    """Zurück zum Blattwert."""
+    cur = conn.execute(
+        "DELETE FROM rezept_anpassung WHERE tenant_id = ? AND rezept_key = ? AND artikel_id = ?",
+        (tenant_id, rezept_key, artikel_id),
+    )
+    conn.commit()
+    return cur.rowcount == 1
+
+
+def anpassungen_fuer(conn: sqlite3.Connection, tenant_id: str) -> list[Rezeptanpassung]:
+    zeilen = conn.execute(
+        "SELECT * FROM rezept_anpassung WHERE tenant_id = ? ORDER BY rezept_key, artikel_id",
+        (tenant_id,),
+    )
+    return [
+        Rezeptanpassung(
+            tenant_id=z["tenant_id"],
+            rezept_key=z["rezept_key"],
+            artikel_id=z["artikel_id"],
+            kg_je_100=z["kg_je_100"],
+            grund=z["grund"],
+            geaendert_am=date.fromisoformat(z["geaendert_am"]),
+        )
+        for z in zeilen
+    ]
+
+
+# --- Prüfvermerke -------------------------------------------------------
+
+
+def lege_vermerk_an(conn: sqlite3.Connection, vermerk: Pruefvermerk) -> bool:
+    """Idempotent über die Vermerk-Nummer: derselbe Punkt liegt nur einmal.
+
+    Ein erledigter Vermerk wird nicht wieder aufgemacht — sonst meldet sich
+    jeder abgehakte Punkt beim nächsten Mischen erneut.
+    """
+    cur = conn.execute(
+        "INSERT OR IGNORE INTO pruefvermerk (tenant_id, vermerk_id, betrifft, text,"
+        " angelegt_am) VALUES (?, ?, ?, ?, ?)",
+        (
+            vermerk.tenant_id,
+            vermerk.vermerk_id,
+            vermerk.betrifft,
+            vermerk.text,
+            vermerk.angelegt_am.isoformat(),
+        ),
+    )
+    conn.commit()
+    return cur.rowcount == 1
+
+
+def hake_vermerk_ab(
+    conn: sqlite3.Connection, tenant_id: str, vermerk_id: str, am: date, durch: str = ""
+) -> bool:
+    cur = conn.execute(
+        "UPDATE pruefvermerk SET erledigt_am = ?, erledigt_durch = ?"
+        " WHERE tenant_id = ? AND vermerk_id = ? AND erledigt_am IS NULL",
+        (am.isoformat(), durch, tenant_id, vermerk_id),
+    )
+    conn.commit()
+    return cur.rowcount == 1
+
+
+def vermerke_fuer(
+    conn: sqlite3.Connection, tenant_id: str, *, nur_offene: bool = True
+) -> list[Pruefvermerk]:
+    sql = "SELECT * FROM pruefvermerk WHERE tenant_id = ?"
+    if nur_offene:
+        sql += " AND erledigt_am IS NULL"
+    sql += " ORDER BY angelegt_am, vermerk_id"
+    return [
+        Pruefvermerk(
+            tenant_id=z["tenant_id"],
+            vermerk_id=z["vermerk_id"],
+            betrifft=z["betrifft"],
+            text=z["text"],
+            angelegt_am=date.fromisoformat(z["angelegt_am"]),
+            erledigt_am=date.fromisoformat(z["erledigt_am"]) if z["erledigt_am"] else None,
+            erledigt_durch=z["erledigt_durch"],
+        )
+        for z in conn.execute(sql, (tenant_id,))
+    ]
+
+
+# --- Einstellungen ------------------------------------------------------
+
+
+def setze_einstellung(
+    conn: sqlite3.Connection, tenant_id: str, schluessel: str, wert: str | None
+) -> None:
+    """Unbekannte Schlüssel werden abgewiesen, nicht stillschweigend abgelegt."""
+    if schluessel not in BEKANNT:
+        raise KeyError(f"Unbekannte Einstellung: {schluessel}")
+    if wert is None:
+        conn.execute(
+            "DELETE FROM einstellung WHERE tenant_id = ? AND schluessel = ?",
+            (tenant_id, schluessel),
+        )
+    else:
+        conn.execute(
+            "INSERT INTO einstellung (tenant_id, schluessel, wert) VALUES (?, ?, ?)"
+            " ON CONFLICT (tenant_id, schluessel) DO UPDATE SET wert = excluded.wert",
+            (tenant_id, schluessel, wert),
+        )
+    conn.commit()
+
+
+def einstellungen_fuer(conn: sqlite3.Connection, tenant_id: str) -> dict[str, str]:
+    return {
+        z["schluessel"]: z["wert"]
+        for z in conn.execute(
+            "SELECT schluessel, wert FROM einstellung WHERE tenant_id = ?", (tenant_id,)
+        )
+    }
 
 
 def tabellen(conn: sqlite3.Connection) -> list[str]:

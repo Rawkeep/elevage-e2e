@@ -9,14 +9,20 @@ from datetime import date, datetime
 from pathlib import Path
 
 from elevage import archiv, betrieb
+from elevage.anpassung import normiere_artikel
+from elevage.einstellung import BEKANNT
 from elevage.mischung import baue_mischauftrag
 from elevage.models import (
     Ampel,
+    Ausgleichsart,
     Ereignis,
     EreignisArt,
     Herde,
+    Herkunft,
     Mischauftrag,
     Quittung,
+    Rezept,
+    Rezeptanpassung,
     Tagesbild,
     Termin,
     Tierart,
@@ -101,6 +107,20 @@ def zeige_tagesbild(bild: Tagesbild) -> None:
             print(f"  · {i}")
 
 
+def zeige_rezept(rezept: Rezept) -> None:
+    print(f"\n{rezept.name} ({rezept.key}) · Quelle: {rezept.quelle}")
+    for p in rezept.posten:
+        herkunft = "Betrieb " if p.herkunft is Herkunft.BETRIEB else "Blatt   "
+        vorher = f"  (Blatt: {p.blatt_kg_je_100:.2f})" if p.blatt_kg_je_100 is not None else ""
+        entfaellt = "  ENTFÄLLT" if p.kg_je_100 == 0 else ""
+        print(
+            f"  {p.artikel_id:16s} {p.kg_je_100:7.2f} kg/100kg  {herkunft}"
+            f"{p.name}{vorher}{entfaellt}"
+        )
+    delta = rezept.summe_je_100 - 100.0
+    print(f"  {'SUMME':16s} {rezept.summe_je_100:7.2f} kg/100kg  ({delta:+.2f})")
+
+
 def zeige_mischauftrag(auftrag: Mischauftrag) -> None:
     print(f"\nMISCHAUFTRAG · {auftrag.rezept_name} · Ziel {auftrag.ziel_kg:.0f} kg")
     for z in auftrag.zeilen:
@@ -145,7 +165,7 @@ def main(argv: list[str] | None = None) -> int:
     tb.add_argument("--stichtag", type=_datum, required=True)
     tb.add_argument("--mischen", type=float, help="Mischauftrag über N kg mitdrucken")
     tb.add_argument("--vorrat", type=float, help="Futtervorrat in kg — ergibt die Reichweite")
-    tb.add_argument("--normieren", action="store_true")
+    tb.add_argument("--art", choices=[x.value for x in Ausgleichsart], default=None)
 
     qu = unter.add_parser("quittieren", help="Einen Schritt abhaken")
     _bauplan(qu)
@@ -170,8 +190,29 @@ def main(argv: list[str] | None = None) -> int:
     ge.add_argument("--herde", required=True)
     ge.add_argument("--kg", type=float, required=True)
     ge.add_argument("--am", type=_datum, required=True)
-    ge.add_argument("--normieren", action="store_true")
+    ge.add_argument("--art", choices=[x.value for x in Ausgleichsart], default=None)
     ge.add_argument("--nummer", help="Protokollnummer (Vorgabe: aus Herde/Datum)")
+
+    rz = unter.add_parser("rezept", help="Rezept anzeigen und Mengen anpassen")
+    _bauplan(rz)
+    rz.add_argument("--rezept", choices=[r.key for r in REZEPTE], required=True)
+    rz.add_argument("--artikel", help="Artikelnummer, z. B. MAIS")
+    rz.add_argument("--kg", type=float, help="Menge je 100 kg; 0 = Posten entfällt")
+    rz.add_argument("--grund")
+    rz.add_argument("--am", type=_datum, help="Änderungsdatum (Vorgabe: --am nötig)")
+    rz.add_argument("--zuruecksetzen", action="store_true", help="zurück zum Blattwert")
+
+    es = unter.add_parser("einstellung", help="Einstellungen des Betriebs")
+    _bauplan(es)
+    es.add_argument("--schluessel", choices=sorted(BEKANNT))
+    es.add_argument("--wert", help="ohne --wert: zurück auf den Blattwert")
+
+    pv = unter.add_parser("pruefliste", help="Offene Prüfvermerke")
+    _bauplan(pv)
+    pv.add_argument("--alle", action="store_true")
+    pv.add_argument("--abhaken", help="Vermerk-Nummer")
+    pv.add_argument("--am", type=_datum)
+    pv.add_argument("--durch", default="")
 
     ku = unter.add_parser("verzehr", help="Die Verzehrkurve dieser Herde")
     _bauplan(ku)
@@ -180,7 +221,12 @@ def main(argv: list[str] | None = None) -> int:
     mi = unter.add_parser("mischung", help="Waage-Liste für ein Rezept")
     mi.add_argument("--rezept", choices=[r.key for r in REZEPTE], required=True)
     mi.add_argument("--kg", type=float, required=True)
-    mi.add_argument("--normieren", action="store_true")
+    mi.add_argument(
+        "--art",
+        choices=[x.value for x in Ausgleichsart],
+        default=Ausgleichsart.AUSGLEICH.value,
+        help="wie mit einem Überhang umgegangen wird",
+    )
 
     ui = unter.add_parser("ui", help="Lokale Oberfläche starten")
     ui.add_argument("--db", type=Path)
@@ -193,7 +239,7 @@ def main(argv: list[str] | None = None) -> int:
 
     if a.befehl == "mischung":
         zeige_mischauftrag(
-            baue_mischauftrag(rezept_nach_key(a.rezept), a.kg, normieren=a.normieren)
+            baue_mischauftrag(rezept_nach_key(a.rezept), a.kg, art=Ausgleichsart(a.art))
         )
         return 0
     if a.befehl == "demo":
@@ -276,7 +322,14 @@ def main(argv: list[str] | None = None) -> int:
 
         if a.befehl == "gemischt":
             bild = betrieb.tagesbild(conn, a.betrieb, a.herde, a.am)
-            auftrag = mischauftrag_fuer(bild, a.kg, normieren=a.normieren)
+            auftrag, _ = betrieb.mischauftrag(
+                conn,
+                a.betrieb,
+                a.herde,
+                a.kg,
+                a.am,
+                art=Ausgleichsart(a.art) if a.art else None,
+            )
             if auftrag is None:
                 print("Kein Rezept für diese Linie — nichts zu protokollieren.")
                 return 1
@@ -294,6 +347,64 @@ def main(argv: list[str] | None = None) -> int:
             )
             print("\nProtokolliert — die Verzehrkurve rechnet das ab jetzt mit.")
             return 0
+
+        if a.befehl == "rezept":
+            basis = rezept_nach_key(a.rezept)
+            if a.zuruecksetzen or a.kg is not None:
+                if not a.artikel:
+                    print("--artikel fehlt.")
+                    return 1
+                artikel = normiere_artikel(a.artikel)
+                if a.zuruecksetzen:
+                    weg = archiv.loesche_anpassung(conn, a.betrieb, a.rezept, artikel)
+                    print("Zurück auf den Blattwert." if weg else "Es gab keine Anpassung.")
+                else:
+                    if a.am is None:
+                        print("--am fehlt: eine Änderung ohne Datum ist nicht prüfbar.")
+                        return 1
+                    archiv.setze_anpassung(
+                        conn,
+                        Rezeptanpassung(
+                            tenant_id=a.betrieb,
+                            rezept_key=a.rezept,
+                            artikel_id=artikel,
+                            kg_je_100=a.kg,
+                            grund=a.grund,
+                            geaendert_am=a.am,
+                        ),
+                    )
+                    print(f"{artikel} steht jetzt auf {a.kg:.2f} kg je 100 kg.")
+            wirksam = betrieb.wirksames_rezept_fuer(conn, a.betrieb, basis)
+            zeige_rezept(wirksam)
+            return 0
+
+        if a.befehl == "einstellung":
+            if a.schluessel:
+                archiv.setze_einstellung(conn, a.betrieb, a.schluessel, a.wert or None)
+                print(f"{a.schluessel} = {a.wert or '(Blattwert)'}")
+            gesetzt = archiv.einstellungen_fuer(conn, a.betrieb)
+            for schluessel, erklaerung in sorted(BEKANNT.items()):
+                wert = gesetzt.get(schluessel)
+                marke = wert if wert else "(Blattwert)"
+                print(f"  {schluessel:34s} {marke:12s} {erklaerung}")
+            return 0
+
+        if a.befehl == "pruefliste":
+            if a.abhaken:
+                if a.am is None:
+                    print("--am fehlt: ein Abhaken ohne Datum ist nicht prüfbar.")
+                    return 1
+                ok = archiv.hake_vermerk_ab(conn, a.betrieb, a.abhaken, a.am, a.durch)
+                print("Abgehakt." if ok else "Unbekannt oder längst erledigt.")
+            offen = archiv.vermerke_fuer(conn, a.betrieb, nur_offene=not a.alle)
+            if not offen:
+                print("Nichts offen.")
+                return 0
+            for v in offen:
+                stand = f"erledigt {v.erledigt_am}" if v.erledigt_am else "OFFEN"
+                print(f"\n  [{stand}] {v.vermerk_id}  ({v.betrifft}, seit {v.angelegt_am})")
+                print(f"    {v.text}")
+            return 0 if a.alle else 2
 
         if a.befehl == "verzehr":
             kurve, issues = betrieb.verzehrkurve(conn, a.betrieb, a.herde)
@@ -315,7 +426,14 @@ def main(argv: list[str] | None = None) -> int:
         bild = betrieb.tagesbild(conn, a.betrieb, a.herde, a.stichtag, vorrat_kg=a.vorrat)
         zeige_tagesbild(bild)
         if a.mischen:
-            auftrag = mischauftrag_fuer(bild, a.mischen, normieren=a.normieren)
+            auftrag, _ = betrieb.mischauftrag(
+                conn,
+                a.betrieb,
+                a.herde,
+                a.mischen,
+                a.stichtag,
+                art=Ausgleichsart(a.art) if a.art else None,
+            )
             if auftrag is None:
                 print("\nKein Mischauftrag: für diese Linie liegt kein Futterblatt vor.")
             else:

@@ -130,6 +130,123 @@ def test_freigegebene_mischung_wird_protokolliert(conn):
 
 def test_gesperrte_mischung_wird_nicht_protokolliert(conn):
     """Was nicht freigegeben ist, wurde nicht gemischt."""
-    auftrag = baue_mischauftrag(REZEPT_PONTE, 1000)
+    kaputt = REZEPT_PONTE.model_copy(
+        update={
+            "posten": [
+                p.model_copy(update={"kg_je_100": p.kg_je_100 + 20})
+                if p.artikel_id == "SON_CUBE"
+                else p
+                for p in REZEPT_PONTE.posten
+            ]
+        }
+    )
+    auftrag = baue_mischauftrag(kaputt, 1000)
+    assert auftrag.freigegeben is False
     with pytest.raises(ValueError):
         protokolliere_mischung(conn, "betrieb-1", "M-2", "H1", date(2026, 3, 8), auftrag)
+
+
+# --- Anpassungen, Vermerke, Einstellungen -------------------------------
+
+
+def test_anpassung_setzen_aendern_und_zuruecknehmen(conn):
+    from elevage.archiv import anpassungen_fuer, loesche_anpassung, setze_anpassung
+    from elevage.models import Rezeptanpassung
+
+    def machen(kg: float) -> Rezeptanpassung:
+        return Rezeptanpassung(
+            tenant_id="betrieb-1",
+            rezept_key="PONTE_AB_21",
+            artikel_id="MAIS",
+            kg_je_100=kg,
+            grund="Überhang geprüft",
+            geaendert_am=date(2026, 9, 13),
+        )
+
+    setze_anpassung(conn, machen(43.3))
+    setze_anpassung(conn, machen(44.0))  # zweimal derselbe Posten = ein Datensatz
+    alle = anpassungen_fuer(conn, "betrieb-1")
+    assert len(alle) == 1 and alle[0].kg_je_100 == 44.0
+
+    assert loesche_anpassung(conn, "betrieb-1", "PONTE_AB_21", "MAIS") is True
+    assert anpassungen_fuer(conn, "betrieb-1") == []
+
+
+def test_anpassungen_bleiben_beim_eigenen_mandanten(conn):
+    from elevage.archiv import anpassungen_fuer, setze_anpassung
+    from elevage.models import Rezeptanpassung
+
+    setze_anpassung(
+        conn,
+        Rezeptanpassung(
+            tenant_id="betrieb-2",
+            rezept_key="PONTE_AB_21",
+            artikel_id="MAIS",
+            kg_je_100=43.3,
+            geaendert_am=date(2026, 9, 13),
+        ),
+    )
+    assert anpassungen_fuer(conn, "betrieb-1") == []
+    assert len(anpassungen_fuer(conn, "betrieb-2")) == 1
+
+
+def vermerk(**kw):
+    from elevage.models import Pruefvermerk
+
+    daten = dict(
+        tenant_id="betrieb-1",
+        vermerk_id="ausgleich:PONTE_AB_21",
+        betrifft="Rezept PONTE_AB_21",
+        text="Überhang über Mais ausgeglichen — am Original prüfen.",
+        angelegt_am=date(2026, 9, 13),
+    )
+    daten.update(kw)
+    return Pruefvermerk(**daten)
+
+
+def test_derselbe_vermerk_liegt_nur_einmal(conn):
+    from elevage.archiv import lege_vermerk_an, vermerke_fuer
+
+    assert lege_vermerk_an(conn, vermerk()) is True
+    assert lege_vermerk_an(conn, vermerk()) is False
+    assert len(vermerke_fuer(conn, "betrieb-1")) == 1
+
+
+def test_abgehakter_vermerk_kommt_nicht_zurueck(conn):
+    """Sonst meldet sich jeder erledigte Punkt beim nächsten Mischen erneut."""
+    from elevage.archiv import hake_vermerk_ab, lege_vermerk_an, vermerke_fuer
+
+    lege_vermerk_an(conn, vermerk())
+    assert hake_vermerk_ab(conn, "betrieb-1", "ausgleich:PONTE_AB_21", date(2026, 9, 20), "Kofi")
+    assert vermerke_fuer(conn, "betrieb-1") == []
+    alle = vermerke_fuer(conn, "betrieb-1", nur_offene=False)
+    assert alle[0].erledigt_durch == "Kofi"
+
+    lege_vermerk_an(conn, vermerk())  # der Ausgleich passiert wieder
+    assert vermerke_fuer(conn, "betrieb-1") == []  # bleibt erledigt
+
+
+def test_zweimal_abhaken_geht_nicht(conn):
+    from elevage.archiv import hake_vermerk_ab, lege_vermerk_an
+
+    lege_vermerk_an(conn, vermerk())
+    assert hake_vermerk_ab(conn, "betrieb-1", "ausgleich:PONTE_AB_21", date(2026, 9, 20))
+    assert not hake_vermerk_ab(conn, "betrieb-1", "ausgleich:PONTE_AB_21", date(2026, 9, 21))
+
+
+def test_einstellungen_setzen_lesen_loeschen(conn):
+    from elevage.archiv import einstellungen_fuer, setze_einstellung
+
+    setze_einstellung(conn, "betrieb-1", "mischung.ausgleich", "VERBATIM")
+    assert einstellungen_fuer(conn, "betrieb-1") == {"mischung.ausgleich": "VERBATIM"}
+    setze_einstellung(conn, "betrieb-1", "mischung.ausgleich", None)
+    assert einstellungen_fuer(conn, "betrieb-1") == {}
+    assert einstellungen_fuer(conn, "betrieb-2") == {}
+
+
+def test_unbekannte_einstellung_wird_abgewiesen(conn):
+    """Sonst sammelt sich dort Müll, den niemand liest."""
+    from elevage.archiv import setze_einstellung
+
+    with pytest.raises(KeyError):
+        setze_einstellung(conn, "betrieb-1", "irgendwas.erfundenes", "42")

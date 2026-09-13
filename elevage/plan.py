@@ -8,6 +8,7 @@ from __future__ import annotations
 
 from datetime import date, timedelta
 
+from elevage.einstellung import notfall_dosis
 from elevage.models import Ampel, Ereignis, Herde, Quittung, Schritt, Termin, Tierart
 from elevage.notfall import futterwechsel_schritte, schritte_fuer_vorfall
 from elevage.programme import LEGEPHASE_AB_WOCHE, WIEDERKEHREND_LEGEPHASE, programm
@@ -87,6 +88,7 @@ def schritte_fuer(
     herde: Herde,
     stichtag: date,
     ereignisse: list[Ereignis] | None = None,
+    einstellungen: dict[str, str] | None = None,
 ) -> list[Schritt]:
     """Programm + Legeperiode + Futterwechsel + ausgelöste Notfallschemata.
 
@@ -98,10 +100,11 @@ def schritte_fuer(
     schritte = [s for s in programm(herde.tierart) if _gilt(s, herde)]
     schritte += _wiederkehrende_schritte(herde, horizont)
     schritte += futterwechsel_schritte(herde)
+    dosis, vom_betrieb = notfall_dosis(einstellungen or {}, herde.tierart)
     for ereignis in ereignisse or []:
         if ereignis.herde_id != herde.herde_id or ereignis.tenant_id != herde.tenant_id:
             continue
-        schritte += schritte_fuer_vorfall(ereignis, herde)
+        schritte += schritte_fuer_vorfall(ereignis, herde, dosis, vom_betrieb=vom_betrieb)
     return schritte
 
 
@@ -110,6 +113,7 @@ def baue_termine(
     stichtag: date,
     quittungen: list[Quittung] | None = None,
     ereignisse: list[Ereignis] | None = None,
+    einstellungen: dict[str, str] | None = None,
 ) -> list[Termin]:
     """Alle Termine dieser Herde, chronologisch."""
     quittungen = quittungen or []
@@ -123,7 +127,7 @@ def baue_termine(
         if vorhanden is None or q.erledigt_am < vorhanden.erledigt_am:
             quittiert[q.schritt_key] = q
 
-    schritte = schritte_fuer(herde, stichtag, ereignisse)
+    schritte = schritte_fuer(herde, stichtag, ereignisse, einstellungen)
 
     termine: list[Termin] = []
     for s in schritte:
@@ -156,10 +160,11 @@ def offene_issues(
     herde: Herde,
     stichtag: date,
     ereignisse: list[Ereignis] | None = None,
+    einstellungen: dict[str, str] | None = None,
 ) -> list[str]:
     """Widersprüche, die in den geltenden Schritten stecken — ohne Dopplung."""
     raus: list[str] = []
-    for s in schritte_fuer(herde, stichtag, ereignisse):
+    for s in schritte_fuer(herde, stichtag, ereignisse, einstellungen):
         for i in s.issues:
             zeile = f"{s.key}: {i}"
             if zeile not in raus:

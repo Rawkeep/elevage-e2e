@@ -9,13 +9,17 @@ from __future__ import annotations
 
 from datetime import date
 
+from elevage.anpassung import wirksames_rezept
 from elevage.mischung import baue_mischauftrag
 from elevage.models import (
     Ampel,
+    Ausgleichsart,
     Ereignis,
     Herde,
     Mischauftrag,
+    Pruefvermerk,
     Quittung,
+    Rezeptanpassung,
     Tagesbild,
     Termin,
     Verzehrkurve,
@@ -41,17 +45,22 @@ def rechne(
     kurve: Verzehrkurve | None = None,
     vorrat_kg: float | None = None,
     kurven_issues: list[str] | None = None,
+    einstellungen: dict[str, str] | None = None,
+    anpassungen: list[Rezeptanpassung] | None = None,
+    vermerke: list[Pruefvermerk] | None = None,
 ) -> Tagesbild:
     alter = alter_in_tagen(herde, stichtag)
     wochen = alter_in_wochen(alter)
-    termine = baue_termine(herde, stichtag, quittungen, ereignisse)
+    termine = baue_termine(herde, stichtag, quittungen, ereignisse, einstellungen)
 
     ueberfaellig = [t for t in termine if t.ampel is Ampel.ROT]
     heute = [t for t in termine if t.ampel is Ampel.GELB]
     demnaechst = [t for t in termine if t.ampel is Ampel.GRUEN and 0 < t.tage_bis <= VORSCHAU_TAGE]
     erledigt = [t for t in termine if t.ampel is Ampel.ERLEDIGT]
 
-    vorlauf = {s.key: s.vorlauf_tage for s in schritte_fuer(herde, stichtag, ereignisse)}
+    vorlauf = {
+        s.key: s.vorlauf_tage for s in schritte_fuer(herde, stichtag, ereignisse, einstellungen)
+    }
     bestellen = [
         t
         for t in termine
@@ -60,8 +69,10 @@ def rechne(
         and 0 < t.tage_bis <= vorlauf.get(t.schritt_key, 3)
     ]
 
-    issues = offene_issues(herde, stichtag, ereignisse)
+    issues = offene_issues(herde, stichtag, ereignisse, einstellungen)
     phase = rezept_fuer(herde.tierart, wochen)
+    if phase is not None and anpassungen:
+        phase = wirksames_rezept(phase, anpassungen)
     if phase is None:
         issues.append(
             KEIN_MASTFUTTER
@@ -106,6 +117,7 @@ def rechne(
         demnaechst=demnaechst,
         bestellen=bestellen,
         erledigt=erledigt,
+        vermerke=list(vermerke or []),
         futter=futter,
         vorfaelle=meine_vorfaelle,
         ampel=ampel,
@@ -114,12 +126,15 @@ def rechne(
 
 
 def mischauftrag_fuer(
-    bild: Tagesbild, ziel_kg: float, *, normieren: bool = False
+    bild: Tagesbild,
+    ziel_kg: float,
+    *,
+    art: Ausgleichsart = Ausgleichsart.AUSGLEICH,
 ) -> Mischauftrag | None:
     """Die Mischung zur aktuellen Phase — None, wenn es keine gibt."""
     if bild.phase is None:
         return None
-    return baue_mischauftrag(bild.phase, ziel_kg, normieren=normieren)
+    return baue_mischauftrag(bild.phase, ziel_kg, art=art)
 
 
 def naechster_schritt(bild: Tagesbild) -> Termin | None:

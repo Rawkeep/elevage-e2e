@@ -21,20 +21,18 @@ from elevage.models import Posten, Rezept, Tierart
 SUMMEN_TOLERANZ_KG = 0.05
 """Ab dieser Abweichung von 100 kg je 100 kg gilt ein Rezept als auffällig."""
 
-SPERR_SCHWELLE_KG = 2.0
-"""Ab hier wird der Mischauftrag gesperrt, bis ein Mensch entscheidet.
+AUSGLEICH_GRENZE_KG = 15.0
+"""Bis hierhin wird ein Überhang ausgeglichen, darüber hält der Auftrag an.
 
-Bewusst über den 1,1 kg von Démarrage und Poulette: dort ist die Abweichung
-ein Abschreibfehler von gut 1 %, der die Mischung nicht unbrauchbar macht —
-sie wird gemeldet und der Betrieb mischt weiter. Die 6,7 kg der Ponte sind
-eine andere Größenordnung und halten den Auftrag an. Die Zahl ist Tuning,
-kein Naturgesetz — sie gehört dem Betrieb, nicht der Software."""
+15 kg je 100 kg ist kein Abschreibfehler mehr, sondern eine andere
+Rezeptur — so etwas gleicht keine Software still aus. Die Zahl ist Tuning,
+kein Naturgesetz; sie gehört dem Betrieb, nicht dem Programm."""
 
 
 ARTIKELSTAMM: dict[str, str] = {
     "MAIS": "Mais",
     "SOJA_48": "Sojaschrot 48 % RP",
-    "SOJA_TOURFIE": "Soja tourfié (Lesung unsicher: torréfié oder tourteau)",
+    "SOJA_TOURFIE": "Soja torréfié (getoastete Vollfettsoja)",
     "CONCENTRE_CHAIR": "Concentré chair",
     "CONCENTRE_PONTE": "Concentré ponte",
     "SON_CUBE": "Son cube (Weizenkleie, pelletiert)",
@@ -42,10 +40,10 @@ ARTIKELSTAMM: dict[str, str] = {
     "POISSON": "Fischmehl",
     "METHIONINE": "Méthionine",
     "LYSINE": "Lysine",
-    "ALFABIND": "Alfabind (Binder; Blatt schreibt auch AFABIND)",
+    "ALFABIND": "Alfabind (Binder; das Blatt schreibt auch AFABIND)",
     "PHOSPHATE": "Phosphat",
     "SEL": "Salz",
-    "LECENAN": "Lecenan (Zusatz für die Eientwicklung; Schreibweise vom Sackanhänger prüfen)",
+    "LECENAN": "Lecenan (Zusatz für die Eientwicklung)",
 }
 
 ARTIKEL_ALIAS: dict[str, str] = {
@@ -147,6 +145,29 @@ KEIN_MASTFUTTER = (
     "Für Masthühner liegt kein Futterblatt vor — nur das Prophylaxe-Programm. "
     "Der Taktgeber plant für diese Linie deshalb keine Mischung."
 )
+
+
+AUSGLEICHSPOSTEN: dict[str, str] = {
+    "DEMARRAGE_0_8": "MAIS",
+    "POULETTE_8_21": "MAIS",
+    "PONTE_AB_21": "MAIS",
+}
+"""Woraus der Überhang genommen wird — der Energieträger, nicht die Wirkstoffe.
+
+Mais ist der Füller: Kalk, Aminosäuren und Konzentrat stehen für eine
+Funktion, ihre Menge ist die Aussage des Rezepts. Wer den Überhang
+gleichmäßig über alle Posten zieht, senkt auch Methionin und Muschelkalk —
+das ändert die Rezeptur, statt einen Rechenfehler zu glätten. Deshalb ist
+der Ausgleich über einen benannten Posten der Vorgabeweg und `ANTEILIG`
+nur die Alternative auf Ansage."""
+
+
+def ausgleichsposten(rezept: Rezept) -> str:
+    """Der benannte Posten — sonst der größte, weil er die Rundung am besten trägt."""
+    gewaehlt = AUSGLEICHSPOSTEN.get(rezept.key)
+    if gewaehlt and any(p.artikel_id == gewaehlt for p in rezept.posten):
+        return gewaehlt
+    return max(rezept.posten, key=lambda p: p.kg_je_100).artikel_id
 
 
 def rezept_fuer(tierart: Tierart, alter_wochen: int) -> Rezept | None:

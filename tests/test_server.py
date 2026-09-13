@@ -119,20 +119,30 @@ def test_mischung_rechnen_und_buchen(dienst):
         f"{dienst}/api/mischung",
         {"betrieb": "hof", "herde": "H1", "kg": 500, "am": STICHTAG, "buchen": True},
     )
-    assert antwort["auftrag"]["istEinwaageKg"] == 505.5
+    assert antwort["auftrag"]["istEinwaageKg"] == 500.0
+    assert antwort["auftrag"]["ausgleich"] == "AUSGLEICH"
     assert antwort["gebucht"] is True
     kurve = hole(f"{dienst}/api/verzehr?betrieb=hof&herde=H1")
     assert kurve["kurve"]["punkte"]
 
 
-def test_gesperrte_mischung_wird_abgelehnt_statt_gebucht(dienst):
-    """Ponte summiert auf 106,7 kg — buchen muss scheitern."""
-    with pytest.raises(HTTPError) as fehler:
-        sende(
-            f"{dienst}/api/mischung",
-            {"betrieb": "hof", "herde": "H1", "kg": 1000, "am": "2026-09-01", "buchen": True},
-        )
-    assert fehler.value.code == 409
+def test_verbatim_buchen_scheitert_weil_die_menge_nicht_stimmt(dienst):
+    """Verbatim gibt 1067 statt 1000 kg — das darf nicht ins Protokoll."""
+    antwort = sende(
+        f"{dienst}/api/mischung",
+        {"betrieb": "hof", "herde": "H1", "kg": 1000, "am": "2026-09-01", "art": "VERBATIM"},
+    )
+    assert antwort["auftrag"]["istEinwaageKg"] == 1067.0
+    assert antwort["gebucht"] is False
+
+
+def test_ausgleich_wird_als_pruefvermerk_hinterlegt(dienst):
+    sende(
+        f"{dienst}/api/mischung",
+        {"betrieb": "hof", "herde": "H1", "kg": 1000, "am": "2026-09-01"},
+    )
+    bild = hole(f"{dienst}/api/tagesbild?betrieb=hof&herde=H1&stichtag=2026-09-01")
+    assert any("ausgleich:" in v["vermerkId"] for v in bild["vermerke"])
 
 
 def test_unbekannte_herde_und_pfad_melden_sich_sauber(dienst):

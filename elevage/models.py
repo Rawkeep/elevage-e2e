@@ -52,6 +52,21 @@ class EreignisArt(str, Enum):
     GUMBORO = "GUMBORO"
 
 
+class Herkunft(str, Enum):
+    """Steht an jedem Rezeptposten: Blattwert oder Betriebswert."""
+
+    BLATT = "BLATT"
+    BETRIEB = "BETRIEB"
+
+
+class Ausgleichsart(str, Enum):
+    """Wie mit einem Rezept umgegangen wird, das nicht auf 100 kg aufgeht."""
+
+    VERBATIM = "VERBATIM"
+    AUSGLEICH = "AUSGLEICH"
+    ANTEILIG = "ANTEILIG"
+
+
 class Quelle(str, Enum):
     """Woher eine Zahl kommt. Steht an jeder abgeleiteten Zahl dran."""
 
@@ -213,6 +228,10 @@ class Posten(_Basis):
     artikel_id: str
     name: str
     kg_je_100: float
+    herkunft: Herkunft = Herkunft.BLATT
+    blatt_kg_je_100: float | None = Field(
+        default=None, description="Der Wert des Blattes, wenn der Betrieb ihn geändert hat"
+    )
 
 
 class Rezept(_Basis):
@@ -229,6 +248,29 @@ class Rezept(_Basis):
         return round(sum(p.kg_je_100 for p in self.posten), 4)
 
 
+class Rezeptanpassung(_Basis):
+    """Ein vom Betrieb geänderter Rezeptposten. 0 kg heißt: Posten entfällt."""
+
+    tenant_id: str
+    rezept_key: str
+    artikel_id: str
+    kg_je_100: float = Field(ge=0)
+    grund: str | None = None
+    geaendert_am: date
+
+
+class Pruefvermerk(_Basis):
+    """Ein Punkt, den ein Mensch später prüfen soll. Verschwindet nicht von selbst."""
+
+    tenant_id: str
+    vermerk_id: str
+    betrifft: str
+    text: str
+    angelegt_am: date
+    erledigt_am: date | None = None
+    erledigt_durch: str | None = None
+
+
 class Mischzeile(_Basis):
     artikel_id: str
     name: str
@@ -239,6 +281,8 @@ class Mischauftrag(_Basis):
     rezept_key: str
     rezept_name: str
     ziel_kg: float
+    ausgleich: Ausgleichsart
+    ausgleich_posten: str | None = None
     normiert: bool
     zeilen: list[Mischzeile]
     ist_einwaage_kg: float = Field(description="Was tatsächlich in den Mischer geht")
@@ -263,5 +307,6 @@ class Tagesbild(_Basis):
     erledigt: list[Termin] = Field(default_factory=list)
     futter: Futterprognose | None = None
     vorfaelle: list[Ereignis] = Field(default_factory=list)
+    vermerke: list[Pruefvermerk] = Field(default_factory=list)
     ampel: Ampel = Ampel.GRUEN
     issues: list[str] = Field(default_factory=list)

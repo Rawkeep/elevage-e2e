@@ -64,3 +64,16 @@ def test_alle_drei_zustaende_sind_gebaut():
     assert "Lade \\u2026" in SEITE  # laden
     assert "Noch keine Herde für diesen Betrieb" in SEITE  # leer, als Anleitung
     assert "Das hat nicht geklappt" in SEITE  # fehler, mit nächstem Schritt
+
+
+def test_pruefliste_und_ausgleichswahl_sind_bedienbar():
+    """Ein Ausgleich muss abhakbar sein, sonst ist er kein Vermerk."""
+    assert "Zu prüfen" in SEITE
+    assert "/api/vermerk/abhaken" in SEITE
+    for art in ("AUSGLEICH", "VERBATIM", "ANTEILIG"):
+        assert f'value="{art}"' in SEITE
+
+
+def test_verbatim_kann_nicht_gebucht_werden():
+    """1067 kg unter der Überschrift 1000 kg gehören in kein Protokoll."""
+    assert 'a.auftrag.ausgleich === "VERBATIM"' in SEITE

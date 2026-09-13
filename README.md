@@ -26,6 +26,13 @@ python3 -m elevage.cli ausstallen --betrieb hof --herde H1   # Historie bleibt
 
 python3 -m elevage.cli mischung --rezept PONTE_AB_21 --kg 1000 [--normieren]
 
+python3 -m elevage.cli rezept --betrieb hof --rezept PONTE_AB_21 \
+    --artikel MAIS --kg 43.3 --grund "am Original geprüft" --am 2026-03-20
+python3 -m elevage.cli pruefliste --betrieb hof        # Exit 2, solange etwas offen ist
+python3 -m elevage.cli einstellung --betrieb hof \
+    --schluessel notfall.dosis.LEGEHENNE --wert "0,75 g/l"
+python3 -m elevage.cli benutzer --betrieb hof --anlegen kofi --name "Kofi A." --rolle LEITUNG
+
 python3 -m elevage.cli ui                    # Oberfläche auf 127.0.0.1:8791
 ```
 
@@ -50,7 +57,10 @@ ein Wächter-Job daran hängen, ohne die Ausgabe zu lesen.
 | `archiv.py` | SQLite (Stdlib): Herden, Quittungen, Mischprotokoll, Vorfälle |
 | `betrieb.py` | Die Naht: Archiv rein, Tagesbild raus |
 | `seite.py` | Die ganze Oberfläche als ein String — kein Build, kein CDN |
-| `server.py` | Stdlib-HTTP-Server, bindet nur auf localhost |
+| `server.py` | Stdlib-HTTP-Server: Sitzungen, Rollen, Ratenbremse |
+| `anmeldung.py` | Passwörter (scrypt) und Sitzungsmerkmale |
+| `anpassung.py` | Blatt + Betriebsanpassungen = wirksames Rezept |
+| `einstellung.py` | Was vom Blatt abweichen darf, weicht hier ab |
 | `cli.py` | Dünne Schale, keine eigene Logik |
 
 Datenfluss: `Herde` + `Stichtag` → `plan.schritte_fuer()` (Programm +
@@ -105,13 +115,100 @@ zusätzlich ein Zeichen und ein Wort („! überfällig", „› jetzt dran").
 Abhaken folgt dem Undo-Muster: sofort ausführen, Toast mit „Rückgängig",
 keine Bestätigungskaskade.
 
-### Sicherheit — der offene Punkt
+## Anmeldung
 
-**Es gibt noch keine Anmeldung.** Der Betrieb ist ein Auswahlfeld, keine
-Sicherheitsgrenze. Deshalb bindet der Server ausschließlich auf localhost;
-`ELEVAGE_ALLOW_REMOTE` hebt das auf und warnt dabei. Bevor das Ding im Netz
-steht, braucht es echte Auth (Magic-Link/OIDC, nie eigene Passwort-Krypto)
-— so steht es in der Sicherheits-Checkliste des Briefings.
+**Der Betrieb kommt aus der Sitzung, nie aus der Anfrage.** Damit ist die
+Mandantentrennung eine Grenze und kein Auswahlfeld: wer angemeldet ist,
+sieht genau einen Betrieb, und kein Parameter ändert das.
+
+```bash
+elevage benutzer --betrieb hof --anlegen kofi --name "Kofi A." --rolle LEITUNG
+elevage benutzer --betrieb hof --sperren kofi
+```
+
+Das Passwort wird abgefragt, nicht als Argument übergeben — sonst stünde es
+in der Shell-Historie.
+
+| Rolle | darf |
+|---|---|
+| `LESER` | sehen |
+| `STALL` | zusätzlich abhaken, Vorfälle melden, mischen und buchen |
+| `LEITUNG` | zusätzlich Prüfvermerke abhaken (= am Original verglichen) |
+
+**Abweichung vom Briefing, bewusst und benannt:** dort steht „Standard-Auth
+(OIDC/OAuth2 oder bewährte Lib) statt Eigenbau". Es gibt hier keinen
+Identitätsanbieter und keine Fremdbibliothek, weil der Kern dep-arm bleibt
+und der Betrieb offline läuft. Gebaut ist das Kleinste, was verteidigbar
+ist — und **keine eigene Krypto**:
+
+* `hashlib.scrypt` aus der Standardbibliothek als Schlüsselableitung, mit
+  den Parametern im Hash, damit sie später erhöht werden können.
+* Vergleiche über `hmac.compare_digest`, nie über `==`.
+* Das Sitzungsmerkmal liegt **nur als SHA-256** in der Datenbank. Wer die
+  Datei kopiert, hat damit keine gültige Sitzung.
+* Cookie `HttpOnly` + `SameSite=Strict`, dazu ein Origin-Abgleich bei jedem
+  POST. Anmeldeversuche sind gebremst (5 in 15 Minuten, je Konto **und** je
+  Herkunft), und die Antwort unterscheidet nie zwischen „Konto unbekannt"
+  und „Passwort falsch".
+
+Kommt später OIDC dazu, ist `anmeldung.pruefe_passwort` die eine Naht, die
+getauscht wird — sonst nichts.
+
+## Betrieb
+
+`elevage ui` bindet auf `127.0.0.1`. Für eine andere Adresse braucht es
+`ELEVAGE_ALLOW_REMOTE=1`, und dann gehört **TLS davor** — ohne
+`ELEVAGE_SECURE_COOKIE=1` warnt der Start, weil Passwort und Sitzung sonst
+im Klartext reisen.
+
+`Dockerfile` und `fly.toml` liegen bei: ein Deployable, SQLite auf einem
+Volume, scale-to-zero, Region `cdg` (näher an Westafrika als `fra`). Kein
+Build-Schritt fürs Frontend — die Seite ist ein String im Paket.
+
+```bash
+fly launch --no-deploy   # einmalig, App-Namen bestätigen
+fly volumes create elevage_daten --size 1
+fly deploy
+fly ssh console -C "python -m elevage.cli benutzer --betrieb hof --anlegen kofi --name 'Kofi A.' --rolle LEITUNG"
+```
+
+## Wenn ein Rezept nicht auf 100 kg aufgeht
+
+Drei Wege, und die Ausgabe sagt immer, welcher gegangen wurde:
+
+| Weg | was passiert | Ponte auf 1000 kg |
+|---|---|---|
+| `AUSGLEICH` (Vorgabe) | Überhang aus **einem** benannten Posten, dem Energieträger | Mais 500 → **433 kg**, Rest unberührt, 1000 kg im Mischer |
+| `VERBATIM` | gerechnet wie das Blatt | 1067 kg im Mischer — nicht buchbar |
+| `ANTEILIG` | alles gleichmäßig skaliert | 1000 kg, aber auch Kalk und Methionin sinken |
+
+Warum ein Posten und nicht alle: Kalk, Aminosäuren und Konzentrat stehen für
+eine **Funktion**; ihre Menge ist die Aussage des Rezepts, nicht sein Puffer.
+Mais ist der Füller und trägt den Abschreibfehler. Gesperrt wird nur noch,
+was kein Abschreibfehler mehr sein kann — über 15 kg je 100 kg, oder wenn
+der Ausgleichsposten gar nicht reicht.
+
+Jeder Ausgleich hinterlegt einen **Prüfvermerk** mit Vorher-Nachher-Wert und
+Quelle. Er bleibt offen, bis ihn jemand mit `LEITUNG`-Rolle abhakt, und kommt
+danach nicht zurück. `elevage pruefliste` endet mit Code 2, solange etwas
+offen ist — damit lässt sich ein Wächter daranhängen.
+
+## Mengen und Dosen sind anpassbar
+
+Das Blatt bleibt im Code stehen und wird **nie** überschrieben. Was der
+Betrieb ändert, liegt als Anpassung daneben; jeder Posten trägt danach seine
+Herkunft und den Blattwert:
+
+```
+MAIS               43.30 kg/100kg  Betrieb Mais  (Blatt: 50.00)
+SOJA_TOURFIE       14.00 kg/100kg  Blatt   Soja torréfié
+SUMME             100.00 kg/100kg  (+0.00)
+```
+
+0 kg heißt: der Posten entfällt. Ebenso ist die **Desinfektionsdosis im
+Gumboro-Schema** eine Einstellung — Vorgabe bleibt der Wert des eigenen
+Blattes, und der Befund sagt, ob die Zahl vom Blatt oder vom Betrieb kommt.
+Unbekannte Einstellungsschlüssel werden abgewiesen, nicht abgelegt.
 
 ## Regeln, die nicht gebrochen werden
 
@@ -137,6 +234,10 @@ steht, braucht es echte Auth (Magic-Link/OIDC, nie eigene Passwort-Krypto)
 9. **Tuning steht als Konstante am Modulanfang**, keine Magic Numbers.
 10. **Migrationen sind nummeriert** und laufen vorwärts gegen eine
     Versionstabelle — kein ad-hoc `ALTER` im Code.
+11. **Das Blatt wird nie überschrieben.** Betriebswerte liegen daneben, und
+    jeder Posten trägt seine Herkunft.
+12. **Kein Ausgleich ohne Prüfvermerk.** Eine geglättete Zahl, die niemand
+    mehr nachsieht, ist schlimmer als eine, die anhält.
 
 ## Befunde aus den Quellblättern
 
@@ -145,8 +246,6 @@ steht, braucht es echte Auth (Magic-Link/OIDC, nie eigene Passwort-Krypto)
 | Rezept *Ponte* summiert auf **106,7 kg** je 100 kg (+6,7) | `rezepte.py` |
 | *Démarrage* und *Poulette* summieren auf 101,1 kg (+1,1) | `rezepte.py` |
 | Binder steht als **ALFABIND** und **AFABIND** — ein Artikel | `ARTIKEL_ALIAS` |
-| „Soja tourfié": *torréfié* oder *tourteau*? Lesung offen | `ARTIKELSTAMM` |
-| „Lecenan": Zusatz für die Eientwicklung, Schreibweise offen | `ARTIKELSTAMM` |
 | J12 und J17 heißen beide „2ème Vaccin GUMBORO" | `programme.py` |
 | ND-Auffrischung Tag 57–60 steht in der Woche-7-Zeile **und** als Woche 9 | `programme.py` |
 | Woche-6-Zeile ist auf Tag 35–40 datiert, Woche 6 ist Tag 36–42 | `programme.py` |

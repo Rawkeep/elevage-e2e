@@ -6,15 +6,18 @@ import argparse
 import os
 import sys
 from datetime import date, datetime
+from getpass import getpass
 from pathlib import Path
 
 from elevage import archiv, betrieb
+from elevage.anmeldung import PasswortZuKurz, hashe_passwort
 from elevage.anpassung import normiere_artikel
 from elevage.einstellung import BEKANNT
 from elevage.mischung import baue_mischauftrag
 from elevage.models import (
     Ampel,
     Ausgleichsart,
+    Benutzer,
     Ereignis,
     EreignisArt,
     Herde,
@@ -23,6 +26,7 @@ from elevage.models import (
     Quittung,
     Rezept,
     Rezeptanpassung,
+    Rolle,
     Tagesbild,
     Termin,
     Tierart,
@@ -228,6 +232,14 @@ def main(argv: list[str] | None = None) -> int:
         help="wie mit einem Überhang umgegangen wird",
     )
 
+    bu = unter.add_parser("benutzer", help="Benutzer anlegen, sperren, auflisten")
+    _bauplan(bu)
+    bu.add_argument("--anlegen", metavar="ANMELDENAME")
+    bu.add_argument("--name", help="Klarname der Person")
+    bu.add_argument("--rolle", choices=[r.value for r in Rolle], default=Rolle.STALL.value)
+    bu.add_argument("--sperren", metavar="ANMELDENAME")
+    bu.add_argument("--am", type=_datum, help="Anlagedatum (Vorgabe: heute)")
+
     ui = unter.add_parser("ui", help="Lokale Oberfläche starten")
     ui.add_argument("--db", type=Path)
     ui.add_argument("--port", type=int, default=STANDARD_PORT)
@@ -346,6 +358,55 @@ def main(argv: list[str] | None = None) -> int:
                 auftrag,
             )
             print("\nProtokolliert — die Verzehrkurve rechnet das ab jetzt mit.")
+            return 0
+
+        if a.befehl == "benutzer":
+            if a.anlegen or a.sperren:
+                anmeldename = a.anlegen or a.sperren
+                vorhanden = archiv.benutzer_mit_hash(conn, anmeldename)
+                if a.sperren:
+                    if vorhanden is None:
+                        print(f"Unbekannt: {anmeldename}")
+                        return 1
+                    archiv.lege_benutzer_an(
+                        conn, vorhanden[0].model_copy(update={"aktiv": False}), vorhanden[1]
+                    )
+                    print(f"{anmeldename} gesperrt. Offene Sitzungen gelten nicht mehr.")
+                else:
+                    if not a.name:
+                        print("--name fehlt: ein Konto ohne Klarnamen ist nicht prüfbar.")
+                        return 1
+                    if vorhanden is not None and vorhanden[0].tenant_id != a.betrieb:
+                        print(f"{anmeldename} gehört bereits zu {vorhanden[0].tenant_id}.")
+                        return 1
+                    passwort = getpass("Passwort: ")
+                    if passwort != getpass("Wiederholen: "):
+                        print("Die Eingaben stimmen nicht überein.")
+                        return 1
+                    try:
+                        hash_wert = hashe_passwort(passwort)
+                    except PasswortZuKurz as fehler:
+                        print(str(fehler))
+                        return 1
+                    archiv.lege_benutzer_an(
+                        conn,
+                        Benutzer(
+                            tenant_id=a.betrieb,
+                            benutzer_id=anmeldename,
+                            name=a.name,
+                            rolle=Rolle(a.rolle),
+                            angelegt_am=a.am or date.today(),
+                        ),
+                        hash_wert,
+                    )
+                    print(f"{anmeldename} angelegt für {a.betrieb} als {a.rolle}.")
+            alle = archiv.liste_benutzer(conn, a.betrieb)
+            if not alle:
+                print("Keine Benutzer für diesen Betrieb.")
+                return 0
+            for b in alle:
+                stand = "aktiv " if b.aktiv else "GESPERRT"
+                print(f"  {b.benutzer_id:16s} {stand:9s} {b.rolle.value:8s} {b.name}")
             return 0
 
         if a.befehl == "rezept":

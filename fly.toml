@@ -1,0 +1,35 @@
+# Eine Maschine, SQLite auf einem Volume, scale-to-zero.
+# Region cdg (Paris): näher an Westafrika als fra, und Fly hat dort keinen
+# eigenen Standort. Wer aus Europa arbeitet, ändert es auf fra.
+app = "elevage"
+primary_region = "cdg"
+
+[build]
+  dockerfile = "Dockerfile"
+
+[env]
+  ELEVAGE_DB = "/data/elevage.db"
+  ELEVAGE_ALLOW_REMOTE = "1"
+  ELEVAGE_SECURE_COOKIE = "1"
+
+[[mounts]]
+  source = "elevage_daten"
+  destination = "/data"
+
+[http_service]
+  internal_port = 8080
+  force_https = true
+  auto_stop_machines = "stop"
+  auto_start_machines = true
+  min_machines_running = 0
+
+  # Eine Maschine, ein SQLite. Kein zweiter Prozess, der dieselbe Datei
+  # schreibt — sonst braucht es Sharding, und das will hier niemand.
+  [http_service.concurrency]
+    type = "requests"
+    hard_limit = 50
+    soft_limit = 25
+
+[[vm]]
+  size = "shared-cpu-1x"
+  memory = "512mb"

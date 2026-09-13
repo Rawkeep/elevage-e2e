@@ -98,6 +98,8 @@ td.zahl, th.zahl { text-align: right; }
 .toast button { background: transparent; border-color: currentColor; color: inherit;
                 min-height: 36px; }
 [hidden] { display: none !important; }
+body[data-rolle="LESER"] button.tat:not(#laden):not(#rechnen) { display: none; }
+body:not([data-rolle="LEITUNG"]) #vermerke button { display: none; }
 .leer { color: var(--leise); padding: 8px 0; }
 @media (prefers-reduced-motion: no-preference) {
   .toast { animation: hoch .2s ease-out; }
@@ -114,11 +116,13 @@ td.zahl, th.zahl { text-align: right; }
       <h1>Taktgeber</h1>
       <p class="leise" id="unterzeile">Prophylaxe und Fütterung je Herde</p>
     </div>
-    <button class="still" id="thema" type="button">Ansicht wechseln</button>
+    <div style="display:flex;gap:8px;align-items:center">
+      <span class="leise" id="wer"></span>
+      <button class="still" id="thema" type="button">Ansicht wechseln</button>
+      <button class="still" id="abmelden" type="button">Abmelden</button>
+    </div>
   </div>
   <div class="kopf" style="margin-top:12px">
-    <div><label for="betrieb">Betrieb</label>
-      <input id="betrieb" value="standard" size="12"></div>
     <div><label for="herde">Herde</label><select id="herde"></select></div>
     <div><label for="stichtag">Stichtag</label><input id="stichtag" type="date"></div>
     <div><label for="vorrat">Futtervorrat (kg)</label>
@@ -218,6 +222,7 @@ function fenster(t) {
 
 async function hole(pfad, optionen) {
   const antwort = await fetch(pfad, optionen);
+  if (antwort.status === 401) { window.location.href = "/anmelden"; throw new Error("abgemeldet"); }
   const inhalt = await antwort.json();
   if (!antwort.ok) throw new Error(inhalt.fehler || "Unbekannter Fehler");
   return inhalt;
@@ -288,7 +293,7 @@ function fuelle(id, liste, mitKnopf) {
 }
 
 async function ladeHerden() {
-  const daten = await hole("/api/herden?betrieb=" + encodeURIComponent($("betrieb").value));
+  const daten = await hole("/api/herden");
   const wahl = $("herde");
   const vorher = wahl.value;
   wahl.replaceChildren();
@@ -306,6 +311,9 @@ async function lade() {
   $("zustand").hidden = false;
   $("zustand").textContent = "Lade \\u2026";
   try {
+    const ich = await hole("/api/ich");
+    $("wer").textContent = ich.name + " \\u00b7 " + ich.tenantId + " \\u00b7 " + ich.rolle;
+    document.body.dataset.rolle = ich.rolle;
     const anzahl = await ladeHerden();
     if (!anzahl) {
       $("zustand").textContent =
@@ -315,7 +323,7 @@ async function lade() {
       return;
     }
     const p = new URLSearchParams({
-      betrieb: $("betrieb").value, herde: $("herde").value, stichtag: $("stichtag").value,
+      herde: $("herde").value, stichtag: $("stichtag").value,
     });
     if ($("vorrat").value) p.set("vorrat", $("vorrat").value);
     bild = await hole("/api/tagesbild?" + p);
@@ -404,8 +412,7 @@ async function quittiere(t) {
       method: "POST",
       headers: { "content-type": "application/json" },
       body: JSON.stringify({
-        betrieb: $("betrieb").value, herde: $("herde").value,
-        schritt: t.schrittKey, am: $("stichtag").value,
+        herde: $("herde").value, schritt: t.schrittKey, am: $("stichtag").value,
       }),
     });
     letzteQuittung = antwort.quittungId;
@@ -418,7 +425,7 @@ $("undo").onclick = async () => {
   if (!letzteQuittung) return;
   await hole("/api/quittung/widerrufen", {
     method: "POST", headers: { "content-type": "application/json" },
-    body: JSON.stringify({ betrieb: $("betrieb").value, quittungId: letzteQuittung }),
+    body: JSON.stringify({ quittungId: letzteQuittung }),
   });
   letzteQuittung = null;
   $("toast").hidden = true;
@@ -429,9 +436,7 @@ async function hakeAb(v) {
   try {
     await hole("/api/vermerk/abhaken", {
       method: "POST", headers: { "content-type": "application/json" },
-      body: JSON.stringify({
-        betrieb: $("betrieb").value, vermerkId: v.vermerkId, am: $("stichtag").value,
-      }),
+      body: JSON.stringify({ vermerkId: v.vermerkId, am: $("stichtag").value }),
     });
     melde("Als geprüft abgehakt.", false);
     await lade();
@@ -440,9 +445,8 @@ async function hakeAb(v) {
 
 async function rechne(buchen) {
   const koerper = {
-    betrieb: $("betrieb").value, herde: $("herde").value,
-    kg: Number($("menge").value), am: $("stichtag").value,
-    art: $("art").value, buchen: !!buchen,
+    herde: $("herde").value, kg: Number($("menge").value),
+    am: $("stichtag").value, art: $("art").value, buchen: !!buchen,
   };
   const ziel = $("mischung");
   try {
@@ -487,9 +491,8 @@ $("melden").onclick = async () => {
     await hole("/api/vorfall", {
       method: "POST", headers: { "content-type": "application/json" },
       body: JSON.stringify({
-        betrieb: $("betrieb").value, herde: $("herde").value,
-        art: $("vorfallart").value, am: $("vorfalltag").value,
-        bemerkung: $("vorfalltext").value || null,
+        herde: $("herde").value, art: $("vorfallart").value,
+        am: $("vorfalltag").value, bemerkung: $("vorfalltext").value || null,
       }),
     });
     melde("Vorfall aufgenommen \\u2014 das Schema steht im Plan.", false);
@@ -503,13 +506,124 @@ $("thema").onclick = () => {
   document.documentElement.dataset.thema = jetzt === "dunkel" ? "hell" : "dunkel";
 };
 
+$("abmelden").onclick = async () => {
+  await fetch("/api/abmelden", { method: "POST" });
+  window.location.href = "/anmelden";
+};
+
 $("laden").onclick = lade;
-$("betrieb").onchange = lade;
 $("herde").onchange = lade;
 $("stichtag").value = heute();
 $("vorfalltag").value = heute();
 lade();
 </script>
+</body>
+</html>
+"""
+
+ANMELDESEITE = """<!doctype html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Taktgeber — Anmeldung</title>
+<style>
+:root {
+  color-scheme: light dark;
+  --grund: #faf7f2; --karte: #ffffff; --rand: #ddd2c4;
+  --text: #241d16; --leise: #5d5145; --petrol: #12525c; --terrakotta: #9c3d22;
+}
+@media (prefers-color-scheme: dark) {
+  :root { --grund: #191512; --karte: #221d19; --rand: #3d342c;
+          --text: #f3ece4; --leise: #b9aa9a; --petrol: #7fc6d1; --terrakotta: #f09077; }
+}
+* { box-sizing: border-box; }
+body { margin: 0; min-height: 100vh; display: grid; place-items: center;
+       background: var(--grund); color: var(--text);
+       font: 17px/1.55 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; }
+main { width: min(26rem, 100% - 32px); background: var(--karte);
+       border: 1px solid var(--rand); border-radius: 10px; padding: 22px; }
+h1 { font-size: 1.35rem; margin: 0 0 4px; }
+p.leise { color: var(--leise); font-size: .92rem; margin-top: 0; }
+label { display: block; font-size: .85rem; color: var(--leise); margin: 14px 0 3px; }
+input, button { font: inherit; width: 100%; min-height: 44px; border-radius: 8px;
+                border: 1px solid var(--rand); background: var(--grund);
+                color: var(--text); padding: 6px 12px; }
+button { margin-top: 18px; background: var(--petrol); border-color: var(--petrol);
+         color: var(--grund); font-weight: 600; cursor: pointer; }
+input:focus-visible, button:focus-visible { outline: 3px solid var(--petrol);
+                                            outline-offset: 2px; }
+#fehler { color: var(--terrakotta); font-weight: 600; margin-top: 14px; }
+[hidden] { display: none !important; }
+body[data-rolle="LESER"] button.tat:not(#laden):not(#rechnen) { display: none; }
+body:not([data-rolle="LEITUNG"]) #vermerke button { display: none; }
+</style>
+</head>
+<body>
+<main>
+  <h1>Taktgeber</h1>
+  <p class="leise">Prophylaxe und Fütterung je Herde</p>
+  <form id="form">
+    <label for="benutzer">Anmeldename</label>
+    <input id="benutzer" name="benutzer" autocomplete="username" autocapitalize="none"
+           required autofocus>
+    <label for="passwort">Passwort</label>
+    <input id="passwort" name="passwort" type="password"
+           autocomplete="current-password" required>
+    <button type="submit">Anmelden</button>
+  </form>
+  <p id="fehler" role="alert" hidden></p>
+</main>
+<script>
+const form = document.getElementById("form");
+const fehler = document.getElementById("fehler");
+form.onsubmit = async (ereignis) => {
+  ereignis.preventDefault();
+  fehler.hidden = true;
+  const antwort = await fetch("/api/anmelden", {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({
+      benutzer: document.getElementById("benutzer").value,
+      passwort: document.getElementById("passwort").value,
+    }),
+  });
+  if (antwort.ok) { window.location.href = "/"; return; }
+  const inhalt = await antwort.json().catch(() => ({}));
+  fehler.textContent = inhalt.fehler || "Anmeldung fehlgeschlagen.";
+  fehler.hidden = false;
+};
+</script>
+</body>
+</html>
+"""
+
+ERSTER_BENUTZER = """<!doctype html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Taktgeber — noch kein Benutzer</title>
+<style>
+body { margin: 0; min-height: 100vh; display: grid; place-items: center;
+       background: #faf7f2; color: #241d16;
+       font: 17px/1.6 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; }
+main { width: min(34rem, 100% - 32px); background: #fff; border: 1px solid #ddd2c4;
+       border-radius: 10px; padding: 22px; }
+code { display: block; background: #f2ece3; padding: 10px 12px; border-radius: 8px;
+       margin-top: 10px; overflow-x: auto; }
+</style>
+</head>
+<body>
+<main>
+  <h1>Noch kein Benutzer angelegt</h1>
+  <p>Ohne Benutzer gibt es keine Anmeldung und damit keinen Zugang. Den ersten
+     legst du auf dem Rechner an, auf dem der Taktgeber läuft:</p>
+  <code>elevage benutzer --anlegen leitung --betrieb hof
+       --name "Vorname Nachname" --rolle LEITUNG</code>
+  <p>Das Passwort wird dabei abgefragt und steht nicht in der Kommandozeile.
+     Danach diese Seite neu laden.</p>
+</main>
 </body>
 </html>
 """

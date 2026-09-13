@@ -106,6 +106,31 @@ class Schritt(_Basis):
     issues: list[str] = Field(default_factory=list)
 
 
+class Rolle(str, Enum):
+    """Wer was darf. LESER sieht, STALL hakt ab, LEITUNG ändert Rezepte."""
+
+    LESER = "LESER"
+    STALL = "STALL"
+    LEITUNG = "LEITUNG"
+
+
+class Benutzer(_Basis):
+    tenant_id: str
+    benutzer_id: str = Field(description="Anmeldename, betriebsübergreifend eindeutig")
+    name: str
+    rolle: Rolle = Rolle.STALL
+    aktiv: bool = True
+    angelegt_am: date
+
+
+class Sitzung(_Basis):
+    tenant_id: str
+    benutzer_id: str
+    rolle: Rolle
+    name: str
+    laeuft_ab_am: date
+
+
 class Herde(_Basis):
     """Eine eingestallte Charge. Alles rechnet sich aus dem Einstalldatum."""
 

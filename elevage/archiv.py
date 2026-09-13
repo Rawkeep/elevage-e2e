@@ -21,12 +21,15 @@ from pathlib import Path
 
 from elevage.einstellung import BEKANNT
 from elevage.models import (
+    Benutzer,
     Ereignis,
     EreignisArt,
     Herde,
     Pruefvermerk,
     Quittung,
     Rezeptanpassung,
+    Rolle,
+    Sitzung,
     Tierart,
 )
 
@@ -129,6 +132,33 @@ MIGRATIONEN: list[tuple[int, str]] = [
             wert       TEXT NOT NULL,
             PRIMARY KEY (tenant_id, schluessel)
         );
+        """,
+    ),
+    (
+        5,
+        """
+        CREATE TABLE benutzer (
+            benutzer_id   TEXT PRIMARY KEY,
+            tenant_id     TEXT NOT NULL,
+            name          TEXT NOT NULL,
+            passwort_hash TEXT NOT NULL,
+            rolle         TEXT NOT NULL DEFAULT 'STALL',
+            aktiv         INTEGER NOT NULL DEFAULT 1,
+            angelegt_am   TEXT NOT NULL
+        );
+
+        CREATE INDEX benutzer_nach_betrieb ON benutzer (tenant_id);
+
+        CREATE TABLE sitzung (
+            token_hash   TEXT PRIMARY KEY,
+            benutzer_id  TEXT NOT NULL,
+            tenant_id    TEXT NOT NULL,
+            angelegt_am  TEXT NOT NULL,
+            laeuft_ab_am TEXT NOT NULL,
+            FOREIGN KEY (benutzer_id) REFERENCES benutzer (benutzer_id)
+        );
+
+        CREATE INDEX sitzung_nach_benutzer ON sitzung (benutzer_id);
         """,
     ),
 ]
@@ -541,8 +571,132 @@ def einstellungen_fuer(conn: sqlite3.Connection, tenant_id: str) -> dict[str, st
     }
 
 
+# --- Benutzer und Sitzungen ---------------------------------------------
+
+
+def lege_benutzer_an(conn: sqlite3.Connection, benutzer: Benutzer, passwort_hash: str) -> None:
+    """Anmeldename ist betriebsübergreifend eindeutig — er identifiziert den Betrieb."""
+    conn.execute(
+        "INSERT INTO benutzer (benutzer_id, tenant_id, name, passwort_hash, rolle,"
+        " aktiv, angelegt_am) VALUES (?, ?, ?, ?, ?, ?, ?)"
+        " ON CONFLICT (benutzer_id) DO UPDATE SET"
+        "  tenant_id=excluded.tenant_id, name=excluded.name,"
+        "  passwort_hash=excluded.passwort_hash, rolle=excluded.rolle,"
+        "  aktiv=excluded.aktiv",
+        (
+            benutzer.benutzer_id,
+            benutzer.tenant_id,
+            benutzer.name,
+            passwort_hash,
+            benutzer.rolle.value,
+            int(benutzer.aktiv),
+            benutzer.angelegt_am.isoformat(),
+        ),
+    )
+    conn.commit()
+
+
+def benutzer_mit_hash(conn: sqlite3.Connection, benutzer_id: str) -> tuple[Benutzer, str] | None:
+    zeile = conn.execute("SELECT * FROM benutzer WHERE benutzer_id = ?", (benutzer_id,)).fetchone()
+    if zeile is None:
+        return None
+    return (
+        Benutzer(
+            tenant_id=zeile["tenant_id"],
+            benutzer_id=zeile["benutzer_id"],
+            name=zeile["name"],
+            rolle=Rolle(zeile["rolle"]),
+            aktiv=bool(zeile["aktiv"]),
+            angelegt_am=date.fromisoformat(zeile["angelegt_am"]),
+        ),
+        zeile["passwort_hash"],
+    )
+
+
+def zaehle_benutzer(conn: sqlite3.Connection) -> int:
+    zeile = conn.execute("SELECT COUNT(*) AS n FROM benutzer").fetchone()
+    return int(zeile["n"])
+
+
+def liste_benutzer(conn: sqlite3.Connection, tenant_id: str) -> list[Benutzer]:
+    return [
+        Benutzer(
+            tenant_id=z["tenant_id"],
+            benutzer_id=z["benutzer_id"],
+            name=z["name"],
+            rolle=Rolle(z["rolle"]),
+            aktiv=bool(z["aktiv"]),
+            angelegt_am=date.fromisoformat(z["angelegt_am"]),
+        )
+        for z in conn.execute(
+            "SELECT * FROM benutzer WHERE tenant_id = ? ORDER BY benutzer_id",
+            (tenant_id,),
+        )
+    ]
+
+
+def oeffne_sitzung(
+    conn: sqlite3.Connection,
+    token_hash_wert: str,
+    benutzer: Benutzer,
+    angelegt_am: date,
+    laeuft_ab_am: date,
+) -> None:
+    conn.execute(
+        "INSERT INTO sitzung (token_hash, benutzer_id, tenant_id, angelegt_am,"
+        " laeuft_ab_am) VALUES (?, ?, ?, ?, ?)",
+        (
+            token_hash_wert,
+            benutzer.benutzer_id,
+            benutzer.tenant_id,
+            angelegt_am.isoformat(),
+            laeuft_ab_am.isoformat(),
+        ),
+    )
+    conn.commit()
+
+
+def lade_sitzung(conn: sqlite3.Connection, token_hash_wert: str, stichtag: date) -> Sitzung | None:
+    """Abgelaufene Sitzungen gelten nicht — und werden gleich weggeräumt."""
+    zeile = conn.execute(
+        "SELECT s.*, b.name, b.rolle, b.aktiv FROM sitzung s"
+        " JOIN benutzer b ON b.benutzer_id = s.benutzer_id"
+        " WHERE s.token_hash = ?",
+        (token_hash_wert,),
+    ).fetchone()
+    if zeile is None:
+        return None
+    if date.fromisoformat(zeile["laeuft_ab_am"]) < stichtag or not zeile["aktiv"]:
+        schliesse_sitzung(conn, token_hash_wert)
+        return None
+    return Sitzung(
+        tenant_id=zeile["tenant_id"],
+        benutzer_id=zeile["benutzer_id"],
+        rolle=Rolle(zeile["rolle"]),
+        name=zeile["name"],
+        laeuft_ab_am=date.fromisoformat(zeile["laeuft_ab_am"]),
+    )
+
+
+def schliesse_sitzung(conn: sqlite3.Connection, token_hash_wert: str) -> bool:
+    cur = conn.execute("DELETE FROM sitzung WHERE token_hash = ?", (token_hash_wert,))
+    conn.commit()
+    return cur.rowcount == 1
+
+
+def raeume_sitzungen_auf(conn: sqlite3.Connection, stichtag: date) -> int:
+    cur = conn.execute("DELETE FROM sitzung WHERE laeuft_ab_am < ?", (stichtag.isoformat(),))
+    conn.commit()
+    return cur.rowcount
+
+
 def tabellen(conn: sqlite3.Connection) -> list[str]:
-    """Fachtabellen ohne die Schema-Buchführung."""
+    """Fachtabellen ohne die Schema-Buchführung und ohne die Anmeldung.
+
+    `benutzer` und `sitzung` sind betriebsübergreifend: der Anmeldename sagt
+    ja gerade, zu welchem Betrieb jemand gehört. Sie tragen trotzdem eine
+    tenant_id, nur eben nicht als Mandantenfilter.
+    """
     zeilen = conn.execute(
         "SELECT name FROM sqlite_master WHERE type = 'table'"
         " AND name NOT LIKE 'sqlite_%' AND name <> 'schema_version'"

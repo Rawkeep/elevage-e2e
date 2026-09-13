@@ -327,3 +327,55 @@ def test_fremde_herkunft_wird_abgewiesen(dienst):
     with pytest.raises(HTTPError) as fehler:
         sitzung.oeffner.open(anfrage, timeout=10)
     assert fehler.value.code == 403
+
+
+def test_wartezeit_wird_beim_abhaken_mitgefuehrt(dienst):
+    leitung = Sitzung(dienst, "leitung")
+    leitung.sende(
+        "/api/praeparat",
+        {"name": "COVIT", "wartezeitEierTage": 7, "quelle": "Beipackzettel"},
+    )
+    assert leitung.hole("/api/praeparate")["praeparate"][0]["wartezeitEierTage"] == 7
+
+    leitung.sende(
+        "/api/quittung",
+        {
+            "herde": "H1",
+            "schritt": "PONDEUSE_J2_ANTIBIOTIKUM",
+            "am": "2026-03-03",
+            "praeparat": "COVIT",
+        },
+    )
+    bild = leitung.hole("/api/tagesbild?herde=H1&stichtag=2026-03-10")
+    sperre = bild["sperren"][0]
+    assert sperre["freigabeAb"] == "2026-03-14"
+    assert sperre["laeuftNoch"] is True
+
+
+def test_ohne_wartezeit_gibt_es_einen_befund_statt_einer_freigabe(dienst):
+    stall = Sitzung(dienst, "stall")
+    stall.sende(
+        "/api/quittung",
+        {
+            "herde": "H1",
+            "schritt": "PONDEUSE_J2_ANTIBIOTIKUM",
+            "am": "2026-03-03",
+            "praeparat": "COVIT",
+        },
+    )
+    bild = stall.hole("/api/tagesbild?herde=H1&stichtag=2026-03-10")
+    assert bild["sperren"] == []
+    assert any("Unbekannt ist nicht null" in i for i in bild["issues"])
+
+
+def test_nur_die_leitung_traegt_eine_wartezeit_ein(dienst):
+    """Für eine Wartezeit geradezustehen ist keine Handgriff-Entscheidung."""
+    with pytest.raises(HTTPError) as fehler:
+        Sitzung(dienst, "stall").sende("/api/praeparat", {"name": "COVIT", "wartezeitEierTage": 7})
+    assert fehler.value.code == 403
+
+
+def test_ein_mittel_ohne_jede_zahl_wird_abgewiesen(dienst):
+    with pytest.raises(HTTPError) as fehler:
+        Sitzung(dienst, "leitung").sende("/api/praeparat", {"name": "COVIT"})
+    assert fehler.value.code == 400

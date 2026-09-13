@@ -74,6 +74,14 @@ class Quelle(str, Enum):
     RICHTWERT = "RICHTWERT"
 
 
+class Erzeugnis(str, Enum):
+    """Woran eine Wartezeit hängt. Das Blatt nennt beides nicht — der
+    Beipackzettel des Präparats schon."""
+
+    EIER = "EIER"
+    FLEISCH = "FLEISCH"
+
+
 class Ampel(str, Enum):
     """Vier Zustände wie in fristen.py: erledigt schlägt alles."""
 
@@ -157,6 +165,9 @@ class Quittung(_Basis):
     quittung_id: str
     erledigt_am: date
     durch: str = ""
+    praeparat: str | None = Field(
+        default=None, description="Welches der Alternativpräparate gegeben wurde"
+    )
     lot: str | None = None
     bemerkung: str | None = None
 
@@ -190,6 +201,36 @@ class Dauerregel(_Basis):
     praeparate: list[str] = Field(default_factory=list)
     intervall_tage: int
     hinweis: str | None = None
+
+
+class Praeparat(_Basis):
+    """Ein Mittel und seine Wartezeit — die Zahl steht auf der Packung.
+
+    `None` heißt **unbekannt**, nicht `0`. Der Unterschied ist der ganze
+    Zweck dieser Tabelle: eine fehlende Wartezeit muss auffallen, nicht
+    stillschweigend zu „darf verkauft werden" werden.
+    """
+
+    tenant_id: str
+    praeparat_id: str
+    name: str
+    wartezeit_eier_tage: int | None = Field(default=None, ge=0)
+    wartezeit_fleisch_tage: int | None = Field(default=None, ge=0)
+    quelle: str | None = Field(default=None, description="Woher die Zahl stammt")
+    hinweis: str | None = None
+
+
+class Sperrfenster(_Basis):
+    """Ab wann wieder vermarktet werden darf. Ergebnis, keine Eingabe."""
+
+    erzeugnis: Erzeugnis
+    herde_id: str
+    praeparat: str
+    schritt_key: str
+    letzte_gabe: date
+    wartezeit_tage: int
+    freigabe_ab: date
+    laeuft_noch: bool
 
 
 class Ereignis(_Basis):
@@ -333,5 +374,6 @@ class Tagesbild(_Basis):
     futter: Futterprognose | None = None
     vorfaelle: list[Ereignis] = Field(default_factory=list)
     vermerke: list[Pruefvermerk] = Field(default_factory=list)
+    sperren: list[Sperrfenster] = Field(default_factory=list)
     ampel: Ampel = Ampel.GRUEN
     issues: list[str] = Field(default_factory=list)

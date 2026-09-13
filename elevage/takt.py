@@ -17,6 +17,7 @@ from elevage.models import (
     Ereignis,
     Herde,
     Mischauftrag,
+    Praeparat,
     Pruefvermerk,
     Quittung,
     Rezeptanpassung,
@@ -34,6 +35,7 @@ from elevage.plan import (
 )
 from elevage.rezepte import KEIN_MASTFUTTER, PHASEN_UEBERLAPPUNG, rezept_fuer
 from elevage.verzehr import prognose, richtwert
+from elevage.wartezeit import berechne_sperren
 
 
 def rechne(
@@ -48,6 +50,7 @@ def rechne(
     einstellungen: dict[str, str] | None = None,
     anpassungen: list[Rezeptanpassung] | None = None,
     vermerke: list[Pruefvermerk] | None = None,
+    praeparate: list[Praeparat] | None = None,
 ) -> Tagesbild:
     alter = alter_in_tagen(herde, stichtag)
     wochen = alter_in_wochen(alter)
@@ -93,6 +96,15 @@ def rechne(
     )
     issues.extend(futter.issues)
 
+    sperren, sperr_issues = berechne_sperren(
+        herde,
+        stichtag,
+        list(quittungen or []),
+        schritte_fuer(herde, stichtag, ereignisse, einstellungen),
+        list(praeparate or []),
+    )
+    issues.extend(sperr_issues)
+
     meine_vorfaelle = [
         e
         for e in (ereignisse or [])
@@ -118,6 +130,7 @@ def rechne(
         bestellen=bestellen,
         erledigt=erledigt,
         vermerke=list(vermerke or []),
+        sperren=sperren,
         futter=futter,
         vorfaelle=meine_vorfaelle,
         ampel=ampel,

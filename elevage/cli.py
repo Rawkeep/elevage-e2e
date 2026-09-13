@@ -23,6 +23,7 @@ from elevage.models import (
     Herde,
     Herkunft,
     Mischauftrag,
+    Praeparat,
     Quittung,
     Rezept,
     Rezeptanpassung,
@@ -34,6 +35,7 @@ from elevage.models import (
 from elevage.rezepte import REZEPTE, rezept_nach_key
 from elevage.server import STANDARD_PORT, laufe
 from elevage.takt import mischauftrag_fuer, rechne
+from elevage.wartezeit import praeparat_id
 
 ERLEDIGT_AB_TAGEN = 10
 """Nur in der Demo: was länger als so lange zurückliegt, gilt als abgehakt."""
@@ -84,6 +86,17 @@ def zeige_tagesbild(bild: Tagesbild) -> None:
                     print(f"        Hinweis: {t.hinweis}")
                 if t.ampel is Ampel.ERLEDIGT and t.lot:
                     print(f"        Charge: {t.lot}")
+
+    laufend = [s for s in bild.sperren if s.laeuft_noch]
+    if laufend:
+        erzeugnis = laufend[0].erzeugnis.value.capitalize()
+        spaeteste = max(s.freigabe_ab for s in laufend)
+        print(f"\nWARTEZEIT — {erzeugnis} gesperrt bis {spaeteste:%d.%m.%Y}")
+        for sp in laufend:
+            print(
+                f"  {sp.praeparat} · letzte Gabe {sp.letzte_gabe:%d.%m.} "
+                f"· {sp.wartezeit_tage} Tage · frei ab {sp.freigabe_ab:%d.%m.}"
+            )
 
     f = bild.futter
     if f and f.bedarf_je_tag_kg is not None:
@@ -177,6 +190,7 @@ def main(argv: list[str] | None = None) -> int:
     qu.add_argument("--schritt", required=True, help="Schlüssel aus dem Tagesbild")
     qu.add_argument("--am", type=_datum, required=True)
     qu.add_argument("--durch", default="")
+    qu.add_argument("--praeparat", help="welches Mittel gegeben wurde (für die Wartezeit)")
     qu.add_argument("--lot")
     qu.add_argument("--bemerkung")
     qu.add_argument("--id", help="Ereignis-Nummer (Vorgabe: aus Herde/Schritt/Datum)")
@@ -210,6 +224,14 @@ def main(argv: list[str] | None = None) -> int:
     _bauplan(es)
     es.add_argument("--schluessel", choices=sorted(BEKANNT))
     es.add_argument("--wert", help="ohne --wert: zurück auf den Blattwert")
+
+    pr = unter.add_parser("praeparat", help="Mittel und ihre Wartezeiten")
+    _bauplan(pr)
+    pr.add_argument("--anlegen", metavar="NAME")
+    pr.add_argument("--eier", type=int, help="Wartezeit für Eier in Tagen")
+    pr.add_argument("--fleisch", type=int, help="Wartezeit für Fleisch in Tagen")
+    pr.add_argument("--quelle", help="woher die Zahl stammt, z. B. Beipackzettel")
+    pr.add_argument("--hinweis")
 
     pv = unter.add_parser("pruefliste", help="Offene Prüfvermerke")
     _bauplan(pv)
@@ -305,6 +327,7 @@ def main(argv: list[str] | None = None) -> int:
                 quittung_id=a.id or f"{a.herde}:{a.schritt}:{a.am.isoformat()}",
                 erledigt_am=a.am,
                 durch=a.durch,
+                praeparat=a.praeparat,
                 lot=a.lot,
                 bemerkung=a.bemerkung,
             )
@@ -448,6 +471,44 @@ def main(argv: list[str] | None = None) -> int:
                 wert = gesetzt.get(schluessel)
                 marke = wert if wert else "(Blattwert)"
                 print(f"  {schluessel:34s} {marke:12s} {erklaerung}")
+            return 0
+
+        if a.befehl == "praeparat":
+            if a.anlegen:
+                if a.eier is None and a.fleisch is None:
+                    print(
+                        "Weder --eier noch --fleisch angegeben. Unbekannt ist nicht "
+                        "null — lieber nichts eintragen als eine geratene Zahl."
+                    )
+                    return 1
+                archiv.setze_praeparat(
+                    conn,
+                    Praeparat(
+                        tenant_id=a.betrieb,
+                        praeparat_id=praeparat_id(a.anlegen),
+                        name=a.anlegen,
+                        wartezeit_eier_tage=a.eier,
+                        wartezeit_fleisch_tage=a.fleisch,
+                        quelle=a.quelle,
+                        hinweis=a.hinweis,
+                    ),
+                )
+                print(f"{a.anlegen} eingetragen.")
+            mittel = archiv.praeparate_fuer(conn, a.betrieb)
+            if not mittel:
+                print("Noch keine Mittel hinterlegt. Ohne sie gibt es keine Wartezeit.")
+                return 0
+
+            def tage(wert: int | None) -> str:
+                """Unbekannt bekommt einen Strich, keine Null."""
+                return f"{wert} T" if wert is not None else "—"
+
+            print(f"  {'Mittel':28s} {'Eier':>6s} {'Fleisch':>8s}  Quelle")
+            for m in mittel:
+                print(
+                    f"  {m.name:28s} {tage(m.wartezeit_eier_tage):>6s} "
+                    f"{tage(m.wartezeit_fleisch_tage):>8s}  {m.quelle or ''}"
+                )
             return 0
 
         if a.befehl == "pruefliste":

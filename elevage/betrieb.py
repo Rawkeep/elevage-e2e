@@ -76,6 +76,7 @@ def tagesbild(
         einstellungen=archiv.einstellungen_fuer(conn, tenant_id),
         anpassungen=archiv.anpassungen_fuer(conn, tenant_id),
         vermerke=archiv.vermerke_fuer(conn, tenant_id),
+        praeparate=archiv.praeparate_fuer(conn, tenant_id),
     )
 
 

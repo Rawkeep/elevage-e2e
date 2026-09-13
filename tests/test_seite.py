@@ -91,3 +91,15 @@ def test_pruefliste_und_ausgleichswahl_sind_bedienbar():
 def test_verbatim_kann_nicht_gebucht_werden():
     """1067 kg unter der Überschrift 1000 kg gehören in kein Protokoll."""
     assert 'a.auftrag.ausgleich === "VERBATIM"' in SEITE
+
+
+def test_beim_abhaken_wird_nach_dem_mittel_gefragt():
+    """Ohne diese Angabe lässt sich keine Wartezeit rechnen."""
+    assert "Welches Mittel wurde gegeben?" in SEITE
+    assert "function frageMittel(" in SEITE
+    assert "praeparat: mittel" in SEITE
+
+
+def test_die_wartezeit_hat_einen_eigenen_kasten():
+    assert 'id="sperre"' in SEITE
+    assert "gesperrt bis" in SEITE

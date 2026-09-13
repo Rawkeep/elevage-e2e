@@ -155,6 +155,12 @@ body:not([data-rolle="LEITUNG"]) #vermerke button { display: none; }
   <p class="leise" id="phase" style="margin-bottom:0"></p>
 </section>
 
+<section class="karte" id="sperre" hidden>
+  <h2>Wartezeit</h2>
+  <p id="sperrtext" style="margin:0;font-weight:650"></p>
+  <ul id="sperrliste" style="margin-top:8px"></ul>
+</section>
+
 <section class="karte" id="futter" hidden>
   <h2>Futter</h2>
   <p id="futtertext" style="margin:0"></p>
@@ -290,7 +296,8 @@ function postenZeile(t, mitKnopf) {
     knopf.type = "button";
     knopf.textContent = "Erledigt";
     knopf.style.marginTop = "6px";
-    knopf.onclick = () => quittiere(t);
+    knopf.onclick = () => (t.praeparate && t.praeparate.length > 1)
+      ? frageMittel(li, t) : quittiere(t, null);
     rechts.appendChild(knopf);
   }
   kopf.appendChild(rechts);
@@ -359,6 +366,23 @@ function zeige() {
                                       : "Für diese Linie liegt kein Futterblatt vor.";
   $("kopfzahlen").hidden = false;
 
+  const laufend = (bild.sperren || []).filter((s) => s.laeuftNoch);
+  const sperrliste = $("sperrliste");
+  sperrliste.replaceChildren();
+  if (laufend.length) {
+    const spaeteste = laufend.map((s) => s.freigabeAb).sort().pop();
+    const was = laufend[0].erzeugnis === "EIER" ? "Eier" : "Fleisch";
+    $("sperrtext").textContent = was + " gesperrt bis " + spaeteste;
+    laufend.forEach((s) => {
+      const li = document.createElement("li");
+      li.className = "posten ROT";
+      li.textContent = s.praeparat + " \u00b7 letzte Gabe " + s.letzteGabe
+        + " \u00b7 " + s.wartezeitTage + " Tage \u00b7 frei ab " + s.freigabeAb;
+      sperrliste.appendChild(li);
+    });
+  }
+  $("sperre").hidden = laufend.length === 0;
+
   const f = bild.futter;
   if (f && f.bedarfJeTagKg !== null) {
     let text = f.grammJeTierTag + " g/Tier/Tag \\u00b7 " + f.bedarfJeTagKg + " kg am Tag \\u00b7 "
@@ -420,13 +444,50 @@ function zeige() {
   $("block-befunde").hidden = bild.issues.length === 0;
 }
 
-async function quittiere(t) {
+function frageMittel(li, t) {
+  // Das Programm nennt Alternativen; welche gegeben wurde, weiß nur der
+  // Mensch. Ohne diese Angabe lässt sich keine Wartezeit rechnen.
+  if (li.querySelector(".mittelwahl")) return;
+  const kasten = document.createElement("div");
+  kasten.className = "mittelwahl kopf";
+  kasten.style.marginTop = "10px";
+  const feld = document.createElement("div");
+  const beschriftung = document.createElement("label");
+  const kennung = "mittel-" + t.schrittKey;
+  beschriftung.setAttribute("for", kennung);
+  beschriftung.textContent = "Welches Mittel wurde gegeben?";
+  const wahl = document.createElement("select");
+  wahl.id = kennung;
+  t.praeparate.forEach((name) => {
+    const o = document.createElement("option");
+    o.value = name;
+    o.textContent = name;
+    wahl.appendChild(o);
+  });
+  feld.append(beschriftung, wahl);
+  const ja = document.createElement("button");
+  ja.className = "tat";
+  ja.type = "button";
+  ja.textContent = "Abhaken";
+  ja.onclick = () => quittiere(t, wahl.value);
+  const nein = document.createElement("button");
+  nein.className = "still";
+  nein.type = "button";
+  nein.textContent = "Abbrechen";
+  nein.onclick = () => kasten.remove();
+  kasten.append(feld, ja, nein);
+  li.appendChild(kasten);
+  wahl.focus();
+}
+
+async function quittiere(t, mittel) {
   try {
     const antwort = await hole("/api/quittung", {
       method: "POST",
       headers: { "content-type": "application/json" },
       body: JSON.stringify({
-        herde: $("herde").value, schritt: t.schrittKey, am: $("stichtag").value,
+        herde: $("herde").value, schritt: t.schrittKey,
+        am: $("stichtag").value, praeparat: mittel,
       }),
     });
     letzteQuittung = antwort.quittungId;

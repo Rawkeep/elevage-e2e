@@ -42,11 +42,13 @@ from elevage.models import (
     Ausgleichsart,
     Ereignis,
     EreignisArt,
+    Praeparat,
     Quittung,
     Rolle,
     Sitzung,
 )
 from elevage.seite import ANMELDESEITE, ERSTER_BENUTZER, SEITE
+from elevage.wartezeit import praeparat_id
 
 STANDARD_PORT = 8791
 LOKAL = "127.0.0.1"
@@ -236,6 +238,8 @@ def baue_handler(db: Path | None) -> type[BaseHTTPRequestHandler]:
                     self._tagesbild(frage)
                 elif teile.path == "/api/verzehr":
                     self._verzehr(frage)
+                elif teile.path == "/api/praeparate":
+                    self._praeparate()
                 else:
                     raise _Fehler(404, "Unbekannter Pfad")
             except _Fehler as fehler:
@@ -268,6 +272,8 @@ def baue_handler(db: Path | None) -> type[BaseHTTPRequestHandler]:
                     self._mischung(daten)
                 elif teile.path == "/api/vermerk/abhaken":
                     self._vermerk(daten)
+                elif teile.path == "/api/praeparat":
+                    self._praeparat(daten)
                 else:
                     raise _Fehler(404, "Unbekannter Pfad")
             except _Fehler as fehler:
@@ -360,6 +366,38 @@ def baue_handler(db: Path | None) -> type[BaseHTTPRequestHandler]:
                 200, {"kurve": kurve.model_dump(by_alias=True, mode="json"), "issues": issues}
             )
 
+        def _praeparate(self) -> None:
+            sitzung = self._sitzung()
+            with self._mit_db() as conn:
+                mittel = archiv.praeparate_fuer(conn, sitzung.tenant_id)
+            self._json(
+                200,
+                {"praeparate": [m.model_dump(by_alias=True, mode="json") for m in mittel]},
+            )
+
+        def _praeparat(self, daten: dict[str, Any]) -> None:
+            # Eine Wartezeit einzutragen heißt, für sie geradezustehen.
+            sitzung = self._darf(LEITUNG_NUR)
+            name = str(_pflicht(daten, "name"))
+            eier = daten.get("wartezeitEierTage")
+            fleisch = daten.get("wartezeitFleischTage")
+            if eier is None and fleisch is None:
+                raise _Fehler(400, "Keine Wartezeit angegeben — unbekannt ist nicht null.")
+            with self._mit_db() as conn:
+                archiv.setze_praeparat(
+                    conn,
+                    Praeparat(
+                        tenant_id=sitzung.tenant_id,
+                        praeparat_id=praeparat_id(name),
+                        name=name,
+                        wartezeit_eier_tage=eier,
+                        wartezeit_fleisch_tage=fleisch,
+                        quelle=daten.get("quelle"),
+                        hinweis=daten.get("hinweis"),
+                    ),
+                )
+            self._json(200, {"name": name})
+
         def _quittung(self, daten: dict[str, Any]) -> None:
             sitzung = self._darf(SCHREIBENDE_ROLLEN)
             tenant = sitzung.tenant_id
@@ -373,6 +411,7 @@ def baue_handler(db: Path | None) -> type[BaseHTTPRequestHandler]:
                 quittung_id=daten.get("quittungId") or f"{herde}:{schritt}:{am.isoformat()}",
                 erledigt_am=am,
                 durch=daten.get("durch") or sitzung.name,
+                praeparat=daten.get("praeparat"),
                 lot=daten.get("lot"),
                 bemerkung=daten.get("bemerkung"),
             )

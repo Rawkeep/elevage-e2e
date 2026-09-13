@@ -25,6 +25,7 @@ from elevage.models import (
     Ereignis,
     EreignisArt,
     Herde,
+    Praeparat,
     Pruefvermerk,
     Quittung,
     Rezeptanpassung,
@@ -161,6 +162,23 @@ MIGRATIONEN: list[tuple[int, str]] = [
         CREATE INDEX sitzung_nach_benutzer ON sitzung (benutzer_id);
         """,
     ),
+    (
+        6,
+        """
+        CREATE TABLE praeparat (
+            tenant_id              TEXT NOT NULL,
+            praeparat_id           TEXT NOT NULL,
+            name                   TEXT NOT NULL,
+            wartezeit_eier_tage    INTEGER,
+            wartezeit_fleisch_tage INTEGER,
+            quelle                 TEXT,
+            hinweis                TEXT,
+            PRIMARY KEY (tenant_id, praeparat_id)
+        );
+
+        ALTER TABLE quittung ADD COLUMN praeparat TEXT;
+        """,
+    ),
 ]
 
 
@@ -284,7 +302,8 @@ def quittiere(conn: sqlite3.Connection, quittung: Quittung) -> bool:
     """
     cur = conn.execute(
         "INSERT OR IGNORE INTO quittung (tenant_id, quittung_id, herde_id, schritt_key,"
-        " erledigt_am, durch, lot, bemerkung) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+        " erledigt_am, durch, praeparat, lot, bemerkung)"
+        " VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
         (
             quittung.tenant_id,
             quittung.quittung_id,
@@ -292,6 +311,7 @@ def quittiere(conn: sqlite3.Connection, quittung: Quittung) -> bool:
             quittung.schritt_key,
             quittung.erledigt_am.isoformat(),
             quittung.durch,
+            quittung.praeparat,
             quittung.lot,
             quittung.bemerkung,
         ),
@@ -328,6 +348,7 @@ def quittungen_fuer(conn: sqlite3.Connection, tenant_id: str, herde_id: str) -> 
             quittung_id=z["quittung_id"],
             erledigt_am=date.fromisoformat(z["erledigt_am"]),
             durch=z["durch"],
+            praeparat=z["praeparat"],
             lot=z["lot"],
             bemerkung=z["bemerkung"],
         )
@@ -569,6 +590,48 @@ def einstellungen_fuer(conn: sqlite3.Connection, tenant_id: str) -> dict[str, st
             "SELECT schluessel, wert FROM einstellung WHERE tenant_id = ?", (tenant_id,)
         )
     }
+
+
+# --- Präparate ----------------------------------------------------------
+
+
+def setze_praeparat(conn: sqlite3.Connection, praeparat: Praeparat) -> None:
+    """Ein Mittel und seine Wartezeit. None bleibt None — unbekannt ist nicht null."""
+    conn.execute(
+        "INSERT INTO praeparat (tenant_id, praeparat_id, name, wartezeit_eier_tage,"
+        " wartezeit_fleisch_tage, quelle, hinweis) VALUES (?, ?, ?, ?, ?, ?, ?)"
+        " ON CONFLICT (tenant_id, praeparat_id) DO UPDATE SET"
+        "  name=excluded.name, wartezeit_eier_tage=excluded.wartezeit_eier_tage,"
+        "  wartezeit_fleisch_tage=excluded.wartezeit_fleisch_tage,"
+        "  quelle=excluded.quelle, hinweis=excluded.hinweis",
+        (
+            praeparat.tenant_id,
+            praeparat.praeparat_id,
+            praeparat.name,
+            praeparat.wartezeit_eier_tage,
+            praeparat.wartezeit_fleisch_tage,
+            praeparat.quelle,
+            praeparat.hinweis,
+        ),
+    )
+    conn.commit()
+
+
+def praeparate_fuer(conn: sqlite3.Connection, tenant_id: str) -> list[Praeparat]:
+    return [
+        Praeparat(
+            tenant_id=z["tenant_id"],
+            praeparat_id=z["praeparat_id"],
+            name=z["name"],
+            wartezeit_eier_tage=z["wartezeit_eier_tage"],
+            wartezeit_fleisch_tage=z["wartezeit_fleisch_tage"],
+            quelle=z["quelle"],
+            hinweis=z["hinweis"],
+        )
+        for z in conn.execute(
+            "SELECT * FROM praeparat WHERE tenant_id = ? ORDER BY name", (tenant_id,)
+        )
+    ]
 
 
 # --- Benutzer und Sitzungen ---------------------------------------------

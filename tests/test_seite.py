@@ -4,11 +4,25 @@ import re
 
 from elevage.seite import SEITE
 
+SVG_NAMENSRAUM = "http://www.w3.org/2000/svg"
+"""Der einzige erlaubte http-Text in der Seite.
+
+Das ist die Kennung des SVG-Namensraums im Inline-Favicon — eine Zeichenkette,
+die der Browser nie abruft. Ohne sie rendert die data:-URL nicht. Jede andere
+Adresse wäre ein echter Request und damit ein Regelbruch."""
+
 
 def test_null_externe_requests():
     """Hausregel: was ausgeliefert wird, holt nichts aus dem Netz."""
+    ohne_namensraum = SEITE.replace(SVG_NAMENSRAUM, "")
     for muster in (r"https?://", r"src=[\"']//", r"href=[\"']//", r"cdn\.", r"fonts\.g"):
-        assert not re.search(muster, SEITE), f"externer Verweis gefunden: {muster}"
+        assert not re.search(muster, ohne_namensraum), f"externer Verweis: {muster}"
+
+
+def test_das_zeichen_der_seite_ist_inline():
+    """Sonst fragt jeder Browser /favicon.ico an und bekommt 404."""
+    assert 'rel="icon" href="data:image/svg+xml,' in SEITE
+    assert SEITE.count(SVG_NAMENSRAUM) == 1
 
 
 def test_kein_build_noetig():

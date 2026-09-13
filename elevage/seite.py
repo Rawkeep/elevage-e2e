@@ -12,11 +12,25 @@ ein Zeichen und ein Wort.
 
 from __future__ import annotations
 
-SEITE = """<!doctype html>
+FAVICON = (
+    "data:image/svg+xml,"
+    "%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E"
+    "%3Crect width='16' height='16' rx='3' fill='%2312525c'/%3E"
+    "%3Crect x='4' y='3.5' width='8' height='2' rx='1' fill='%23faf7f2'/%3E"
+    "%3Crect x='4' y='7' width='8' height='2' rx='1' fill='%23e0b352'/%3E"
+    "%3Crect x='4' y='10.5' width='8' height='2' rx='1' fill='%23f09077'/%3E"
+    "%3C/svg%3E"
+)
+"""Drei Balken in Rot, Gelb, Grün — das Zeichen der Seite, inline statt Datei.
+
+Ohne dieses Zeichen fragt jeder Browser /favicon.ico an und bekommt 404."""
+
+_ROH = """<!doctype html>
 <html lang="de">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
+<link rel="icon" href="FAVICON_HIER">
 <title>Taktgeber</title>
 <style>
 :root {
@@ -520,6 +534,8 @@ lade();
 </body>
 </html>
 """
+
+SEITE = _ROH.replace("FAVICON_HIER", FAVICON)
 
 ANMELDESEITE = """<!doctype html>
 <html lang="de">

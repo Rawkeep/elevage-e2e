@@ -98,6 +98,27 @@ Dazu ohne Ereignis, aus den Rezepten abgeleitet: **Leberschutz von j-1 bis
 j+2 um jeden Futterwechsel** (Tag 57 und Tag 148) — das verlangt der
 NB-Kasten des Junghennen-Blattes, und es steht in keinem Tagesraster.
 
+## Demo ansehen
+
+**https://rawkeep.github.io/elevage-e2e/** — dieselbe Oberfläche mit
+erfundenen Betriebsdaten. Abhaken, Rückgängig und die drei Ausgleichswege
+funktionieren; Eingaben bleiben im Browser, gespeichert wird nichts.
+
+Es gibt **nur eine Oberfläche**: die Demo ist `seite.SEITE`, davor geschoben
+eine Attrappe für `fetch`, die vorgerechnete Antworten liefert statt den
+Server zu fragen (`tools/baue_demo.py`). Die Zahlen kommen aus
+`takt.rechne()` mit festem Stichtag. Der Pages-Lauf baut die Datei neu und
+vergleicht sie mit der eingecheckten — eine Demo, die von der Engine
+abgedriftet ist, geht nicht online.
+
+```bash
+python3 -m tools.baue_demo    # schreibt docs/index.html
+```
+
+Pages kann den Taktgeber selbst nicht hosten: die Anwendung braucht Python
+und eine Datenbank, Pages liefert nur Dateien. Dafür sind `Dockerfile` und
+`fly.toml` da.
+
 ## Die Oberfläche
 
 `elevage ui` startet einen Stdlib-HTTP-Server auf `127.0.0.1:8791`. Die

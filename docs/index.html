@@ -1,0 +1,583 @@
+<!doctype html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Crect width='16' height='16' rx='3' fill='%2312525c'/%3E%3Crect x='4' y='3.5' width='8' height='2' rx='1' fill='%23faf7f2'/%3E%3Crect x='4' y='7' width='8' height='2' rx='1' fill='%23e0b352'/%3E%3Crect x='4' y='10.5' width='8' height='2' rx='1' fill='%23f09077'/%3E%3C/svg%3E">
+<title>Taktgeber</title>
+<style>
+:root {
+  color-scheme: light dark;
+  --grund: #faf7f2;      --karte: #ffffff;      --rand: #ddd2c4;
+  --text: #241d16;       --leise: #5d5145;
+  --terrakotta: #9c3d22; --petrol: #12525c;     --ocker: #8a6412;
+  --rot-feld: #fbeae5;   --gelb-feld: #fdf3dd;  --gruen-feld: #e6f0ef;
+  --schrift: 17px; --radius: 10px; --ziel: 44px;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-thema="hell"]) {
+    --grund: #191512;    --karte: #221d19;      --rand: #3d342c;
+    --text: #f3ece4;     --leise: #b9aa9a;
+    --terrakotta: #f09077; --petrol: #7fc6d1;   --ocker: #e0b352;
+    --rot-feld: #3a201a; --gelb-feld: #352c14;  --gruen-feld: #1b2e2c;
+  }
+}
+:root[data-thema="dunkel"] {
+  --grund: #191512;      --karte: #221d19;      --rand: #3d342c;
+  --text: #f3ece4;       --leise: #b9aa9a;
+  --terrakotta: #f09077; --petrol: #7fc6d1;     --ocker: #e0b352;
+  --rot-feld: #3a201a;   --gelb-feld: #352c14;  --gruen-feld: #1b2e2c;
+}
+* { box-sizing: border-box; }
+body {
+  margin: 0; background: var(--grund); color: var(--text);
+  font: var(--schrift)/1.55 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+}
+.huelle { max-width: 62rem; margin: 0 auto; padding: 16px; }
+h1 { font-size: 1.45rem; margin: 0 0 2px; }
+h2 { font-size: 1.05rem; margin: 0 0 10px; letter-spacing: .04em; text-transform: uppercase;
+     color: var(--leise); }
+.leise { color: var(--leise); font-size: .92rem; }
+.karte { background: var(--karte); border: 1px solid var(--rand); border-radius: var(--radius);
+         padding: 14px; margin-bottom: 14px; }
+.kopf { display: flex; flex-wrap: wrap; gap: 10px; align-items: flex-end; }
+label { display: block; font-size: .85rem; color: var(--leise); margin-bottom: 3px; }
+select, input, button {
+  font: inherit; min-height: var(--ziel); border-radius: 8px;
+  border: 1px solid var(--rand); background: var(--karte); color: var(--text);
+  padding: 6px 12px;
+}
+button { cursor: pointer; }
+button.tat { background: var(--petrol); border-color: var(--petrol); color: var(--grund);
+             font-weight: 600; }
+button.still { background: transparent; }
+button:focus-visible, select:focus-visible, input:focus-visible {
+  outline: 3px solid var(--ocker); outline-offset: 2px;
+}
+.lage { display: inline-flex; align-items: center; gap: 8px; font-weight: 700;
+        padding: 6px 14px; border-radius: 999px; border: 2px solid currentColor; }
+.ROT { color: var(--terrakotta); } .GELB { color: var(--ocker); }
+.GRUEN, .ERLEDIGT { color: var(--petrol); }
+li.posten { list-style: none; border-left: 5px solid var(--rand); border-radius: 6px;
+            padding: 10px 12px; margin-bottom: 8px; background: var(--grund); }
+li.ROT { border-left-color: var(--terrakotta); background: var(--rot-feld); }
+li.GELB { border-left-color: var(--ocker); background: var(--gelb-feld); }
+li.GRUEN, li.ERLEDIGT { border-left-color: var(--petrol); background: var(--gruen-feld); }
+ul { margin: 0; padding: 0; }
+.titel { font-weight: 650; }
+.mittel { font-size: .9rem; color: var(--leise); }
+.reihe { display: flex; flex-wrap: wrap; gap: 8px; align-items: flex-start;
+         justify-content: space-between; }
+li.posten .reihe > :first-child { flex: 1 1 18rem; min-width: 0; }
+li.posten .reihe > :last-child { flex: 0 0 auto; text-align: right; }
+header .reihe, #kopfzahlen .reihe { align-items: center; }
+.frist { font-variant-numeric: tabular-nums; font-weight: 700; white-space: nowrap; }
+table { width: 100%; border-collapse: collapse; font-variant-numeric: tabular-nums; }
+th, td { text-align: left; padding: 5px 8px; border-bottom: 1px solid var(--rand); }
+td.zahl, th.zahl { text-align: right; }
+.huelle-breit { overflow-x: auto; }
+.befund { font-size: .9rem; border-left: 4px solid var(--ocker); padding-left: 10px;
+          margin-bottom: 8px; color: var(--leise); }
+.toast { position: fixed; inset-block-end: 16px; inset-inline: 16px; max-width: 34rem;
+         margin-inline: auto; background: var(--text); color: var(--grund);
+         border-radius: var(--radius); padding: 12px 16px; display: flex; gap: 12px;
+         align-items: center; justify-content: space-between; }
+.toast button { background: transparent; border-color: currentColor; color: inherit;
+                min-height: 36px; }
+[hidden] { display: none !important; }
+body[data-rolle="LESER"] button.tat:not(#laden):not(#rechnen) { display: none; }
+body:not([data-rolle="LEITUNG"]) #vermerke button { display: none; }
+.leer { color: var(--leise); padding: 8px 0; }
+@media (prefers-reduced-motion: no-preference) {
+  .toast { animation: hoch .2s ease-out; }
+  @keyframes hoch { from { transform: translateY(8px); opacity: 0; } }
+}
+</style>
+</head>
+<body>
+<div class="huelle">
+
+<header class="karte">
+  <div class="reihe">
+    <div>
+      <h1>Taktgeber</h1>
+      <p class="leise" id="unterzeile">Prophylaxe und Fütterung je Herde</p>
+    </div>
+    <div style="display:flex;gap:8px;align-items:center">
+      <span class="leise" id="wer"></span>
+      <button class="still" id="thema" type="button">Ansicht wechseln</button>
+      <button class="still" id="abmelden" type="button">Abmelden</button>
+    </div>
+  </div>
+  <div class="kopf" style="margin-top:12px">
+    <div><label for="herde">Herde</label><select id="herde"></select></div>
+    <div><label for="stichtag">Stichtag</label><input id="stichtag" type="date"></div>
+    <div><label for="vorrat">Futtervorrat (kg)</label>
+      <input id="vorrat" type="number" min="0" step="10" size="6" placeholder="optional"></div>
+    <button class="tat" id="laden" type="button">Anzeigen</button>
+  </div>
+</header>
+
+<p id="zustand" class="karte" role="status">Lade …</p>
+
+<section class="karte" id="kopfzahlen" hidden>
+  <div class="reihe">
+    <span class="lage" id="lage"></span>
+    <span class="leise" id="alter"></span>
+  </div>
+  <p class="leise" id="phase" style="margin-bottom:0"></p>
+</section>
+
+<section class="karte" id="futter" hidden>
+  <h2>Futter</h2>
+  <p id="futtertext" style="margin:0"></p>
+  <p class="leise" id="futterherkunft" style="margin:4px 0 0"></p>
+</section>
+
+<section class="karte" id="block-ueberfaellig" hidden><h2>Überfällig</h2><ul></ul></section>
+<section class="karte" id="block-heute" hidden><h2>Jetzt dran</h2><ul></ul></section>
+<section class="karte" id="block-bestellen" hidden>
+  <h2>Jetzt besorgen</h2>
+  <p class="leise" style="margin:-6px 0 10px">Vorlauf läuft — muss da sein, bevor der Tag kommt.</p>
+  <ul></ul>
+</section>
+<section class="karte" id="block-demnaechst" hidden><h2>Demnächst</h2><ul></ul></section>
+<section class="karte" id="block-erledigt" hidden><h2>Zuletzt erledigt</h2><ul></ul></section>
+
+<section class="karte" id="block-vermerke" hidden>
+  <h2>Zu prüfen</h2>
+  <p class="leise" style="margin:-6px 0 10px">Bleibt liegen, bis jemand am Original nachsieht.</p>
+  <ul id="vermerke"></ul>
+</section>
+
+<section class="karte">
+  <h2>Mischauftrag</h2>
+  <div class="kopf">
+    <div><label for="menge">Menge (kg)</label>
+      <input id="menge" type="number" min="1" step="50" value="500"></div>
+    <div><label for="art">Bei Überhang</label>
+      <select id="art">
+        <option value="AUSGLEICH">über den Energieträger ausgleichen</option>
+        <option value="VERBATIM">wie auf dem Blatt rechnen</option>
+        <option value="ANTEILIG">alles anteilig skalieren</option>
+      </select></div>
+    <button class="tat" id="rechnen" type="button">Rechnen</button>
+    <button class="still" id="buchen" type="button" hidden>Als gemischt buchen</button>
+  </div>
+  <div id="mischung" class="huelle-breit" style="margin-top:10px"></div>
+</section>
+
+<section class="karte">
+  <h2>Vorfall melden</h2>
+  <div class="kopf">
+    <div><label for="vorfallart">Art</label>
+      <select id="vorfallart"><option value="GUMBORO">Gumboro</option></select></div>
+    <div><label for="vorfalltag">Festgestellt am</label><input id="vorfalltag" type="date"></div>
+    <div style="flex:1 1 12rem"><label for="vorfalltext">Beobachtung</label>
+      <input id="vorfalltext" style="width:100%" placeholder="optional"></div>
+    <button class="tat" id="melden" type="button">Melden</button>
+  </div>
+  <p class="leise" style="margin-bottom:0">Das Schema startet am gemeldeten Tag.</p>
+</section>
+
+<section class="karte" id="block-befunde" hidden><h2>Befunde</h2><div id="befunde"></div></section>
+
+</div>
+
+<div class="toast" id="toast" hidden>
+  <span id="toasttext"></span>
+  <button type="button" id="undo">Rückgängig</button>
+</div>
+
+
+<div id="demo-band" style="background:#8a6412;color:#fff;padding:10px 16px;
+     font:600 15px/1.5 system-ui,sans-serif;text-align:center">
+  Demo mit erfundenen Betriebsdaten — Stichtag 30.04.2026.
+  Eingaben bleiben im Browser, es wird nichts gespeichert.
+  <a href="https://github.com/Rawkeep/elevage-e2e" style="color:#fff">Quelltext</a>
+</div>
+<script>
+// Attrappe für fetch: dieselbe Seite, nur ohne Rückseite. Abhaken wirkt
+// im Speicher dieser Registerkarte, damit der Takt sichtbar wird — mehr
+// verspricht das Band oben auch nicht.
+const DEMO = {"auftraege": {"ANTEILIG:1000": {"abweichungJe100": 1.1, "ausgleich": "ANTEILIG", "ausgleichPosten": null, "freigegeben": true, "issues": ["Rezept „Poulette 8 bis 21 Wochen“ summiert auf 101.10 kg je 100 kg (+1.10 kg). Quelle: Betriebsblatt \"PONDEUSE\" (handschriftlich).", "Anteilig skaliert (×0.9891) — jeder Anteil ändert sich, auch Wirkstoffe und Kalk."], "istEinwaageKg": 1000.01, "normiert": true, "rezeptKey": "POULETTE_8_21", "rezeptName": "Poulette 8 bis 21 Wochen", "summeJe100": 101.1, "zeilen": [{"artikelId": "MAIS", "kg": 459.94, "name": "Mais"}, {"artikelId": "SOJA_48", "kg": 39.56, "name": "Sojaschrot 48 % RP"}, {"artikelId": "SOJA_TOURFIE", "kg": 74.18, "name": "Soja torréfié (getoastete Vollfettsoja)"}, {"artikelId": "CONCENTRE_CHAIR", "kg": 49.46, "name": "Concentré chair"}, {"artikelId": "SON_CUBE", "kg": 306.63, "name": "Son cube (Weizenkleie, pelletiert)"}, {"artikelId": "COQUILLE", "kg": 24.73, "name": "Coquille (Muschelschalen-Kalk)"}, {"artikelId": "POISSON", "kg": 29.67, "name": "Fischmehl"}, {"artikelId": "METHIONINE", "kg": 4.95, "name": "Méthionine"}, {"artikelId": "LYSINE", "kg": 4.95, "name": "Lysine"}, {"artikelId": "ALFABIND", "kg": 1.98, "name": "Alfabind (Binder; das Blatt schreibt auch AFABIND)"}, {"artikelId": "PHOSPHATE", "kg": 1.98, "name": "Phosphat"}, {"artikelId": "SEL", "kg": 1.98, "name": "Salz"}], "zielKg": 1000.0}, "ANTEILIG:500": {"abweichungJe100": 1.1, "ausgleich": "ANTEILIG", "ausgleichPosten": null, "freigegeben": true, "issues": ["Rezept „Poulette 8 bis 21 Wochen“ summiert auf 101.10 kg je 100 kg (+1.10 kg). Quelle: Betriebsblatt \"PONDEUSE\" (handschriftlich).", "Anteilig skaliert (×0.9891) — jeder Anteil ändert sich, auch Wirkstoffe und Kalk."], "istEinwaageKg": 499.99, "normiert": true, "rezeptKey": "POULETTE_8_21", "rezeptName": "Poulette 8 bis 21 Wochen", "summeJe100": 101.1, "zeilen": [{"artikelId": "MAIS", "kg": 229.97, "name": "Mais"}, {"artikelId": "SOJA_48", "kg": 19.78, "name": "Sojaschrot 48 % RP"}, {"artikelId": "SOJA_TOURFIE", "kg": 37.09, "name": "Soja torréfié (getoastete Vollfettsoja)"}, {"artikelId": "CONCENTRE_CHAIR", "kg": 24.73, "name": "Concentré chair"}, {"artikelId": "SON_CUBE", "kg": 153.31, "name": "Son cube (Weizenkleie, pelletiert)"}, {"artikelId": "COQUILLE", "kg": 12.36, "name": "Coquille (Muschelschalen-Kalk)"}, {"artikelId": "POISSON", "kg": 14.84, "name": "Fischmehl"}, {"artikelId": "METHIONINE", "kg": 2.47, "name": "Méthionine"}, {"artikelId": "LYSINE", "kg": 2.47, "name": "Lysine"}, {"artikelId": "ALFABIND", "kg": 0.99, "name": "Alfabind (Binder; das Blatt schreibt auch AFABIND)"}, {"artikelId": "PHOSPHATE", "kg": 0.99, "name": "Phosphat"}, {"artikelId": "SEL", "kg": 0.99, "name": "Salz"}], "zielKg": 500.0}, "AUSGLEICH:1000": {"abweichungJe100": 1.1, "ausgleich": "AUSGLEICH", "ausgleichPosten": "MAIS", "freigegeben": true, "issues": ["Rezept „Poulette 8 bis 21 Wochen“ summiert auf 101.10 kg je 100 kg (+1.10 kg). Quelle: Betriebsblatt \"PONDEUSE\" (handschriftlich).", "Ausgeglichen über MAIS: 46.50 → 45.40 kg je 100 kg. Als Prüfvermerk hinterlegt."], "istEinwaageKg": 1000.0, "normiert": false, "rezeptKey": "POULETTE_8_21", "rezeptName": "Poulette 8 bis 21 Wochen", "summeJe100": 101.1, "zeilen": [{"artikelId": "MAIS", "kg": 454.0, "name": "Mais"}, {"artikelId": "SOJA_48", "kg": 40.0, "name": "Sojaschrot 48 % RP"}, {"artikelId": "SOJA_TOURFIE", "kg": 75.0, "name": "Soja torréfié (getoastete Vollfettsoja)"}, {"artikelId": "CONCENTRE_CHAIR", "kg": 50.0, "name": "Concentré chair"}, {"artikelId": "SON_CUBE", "kg": 310.0, "name": "Son cube (Weizenkleie, pelletiert)"}, {"artikelId": "COQUILLE", "kg": 25.0, "name": "Coquille (Muschelschalen-Kalk)"}, {"artikelId": "POISSON", "kg": 30.0, "name": "Fischmehl"}, {"artikelId": "METHIONINE", "kg": 5.0, "name": "Méthionine"}, {"artikelId": "LYSINE", "kg": 5.0, "name": "Lysine"}, {"artikelId": "ALFABIND", "kg": 2.0, "name": "Alfabind (Binder; das Blatt schreibt auch AFABIND)"}, {"artikelId": "PHOSPHATE", "kg": 2.0, "name": "Phosphat"}, {"artikelId": "SEL", "kg": 2.0, "name": "Salz"}], "zielKg": 1000.0}, "AUSGLEICH:500": {"abweichungJe100": 1.1, "ausgleich": "AUSGLEICH", "ausgleichPosten": "MAIS", "freigegeben": true, "issues": ["Rezept „Poulette 8 bis 21 Wochen“ summiert auf 101.10 kg je 100 kg (+1.10 kg). Quelle: Betriebsblatt \"PONDEUSE\" (handschriftlich).", "Ausgeglichen über MAIS: 46.50 → 45.40 kg je 100 kg. Als Prüfvermerk hinterlegt."], "istEinwaageKg": 500.0, "normiert": false, "rezeptKey": "POULETTE_8_21", "rezeptName": "Poulette 8 bis 21 Wochen", "summeJe100": 101.1, "zeilen": [{"artikelId": "MAIS", "kg": 227.0, "name": "Mais"}, {"artikelId": "SOJA_48", "kg": 20.0, "name": "Sojaschrot 48 % RP"}, {"artikelId": "SOJA_TOURFIE", "kg": 37.5, "name": "Soja torréfié (getoastete Vollfettsoja)"}, {"artikelId": "CONCENTRE_CHAIR", "kg": 25.0, "name": "Concentré chair"}, {"artikelId": "SON_CUBE", "kg": 155.0, "name": "Son cube (Weizenkleie, pelletiert)"}, {"artikelId": "COQUILLE", "kg": 12.5, "name": "Coquille (Muschelschalen-Kalk)"}, {"artikelId": "POISSON", "kg": 15.0, "name": "Fischmehl"}, {"artikelId": "METHIONINE", "kg": 2.5, "name": "Méthionine"}, {"artikelId": "LYSINE", "kg": 2.5, "name": "Lysine"}, {"artikelId": "ALFABIND", "kg": 1.0, "name": "Alfabind (Binder; das Blatt schreibt auch AFABIND)"}, {"artikelId": "PHOSPHATE", "kg": 1.0, "name": "Phosphat"}, {"artikelId": "SEL", "kg": 1.0, "name": "Salz"}], "zielKg": 500.0}, "VERBATIM:1000": {"abweichungJe100": 1.1, "ausgleich": "VERBATIM", "ausgleichPosten": null, "freigegeben": true, "issues": ["Rezept „Poulette 8 bis 21 Wochen“ summiert auf 101.10 kg je 100 kg (+1.10 kg). Quelle: Betriebsblatt \"PONDEUSE\" (handschriftlich).", "Verbatim gerechnet: es gehen 1011.00 kg in den Mischer, nicht 1000.00 kg."], "istEinwaageKg": 1011.0, "normiert": false, "rezeptKey": "POULETTE_8_21", "rezeptName": "Poulette 8 bis 21 Wochen", "summeJe100": 101.1, "zeilen": [{"artikelId": "MAIS", "kg": 465.0, "name": "Mais"}, {"artikelId": "SOJA_48", "kg": 40.0, "name": "Sojaschrot 48 % RP"}, {"artikelId": "SOJA_TOURFIE", "kg": 75.0, "name": "Soja torréfié (getoastete Vollfettsoja)"}, {"artikelId": "CONCENTRE_CHAIR", "kg": 50.0, "name": "Concentré chair"}, {"artikelId": "SON_CUBE", "kg": 310.0, "name": "Son cube (Weizenkleie, pelletiert)"}, {"artikelId": "COQUILLE", "kg": 25.0, "name": "Coquille (Muschelschalen-Kalk)"}, {"artikelId": "POISSON", "kg": 30.0, "name": "Fischmehl"}, {"artikelId": "METHIONINE", "kg": 5.0, "name": "Méthionine"}, {"artikelId": "LYSINE", "kg": 5.0, "name": "Lysine"}, {"artikelId": "ALFABIND", "kg": 2.0, "name": "Alfabind (Binder; das Blatt schreibt auch AFABIND)"}, {"artikelId": "PHOSPHATE", "kg": 2.0, "name": "Phosphat"}, {"artikelId": "SEL", "kg": 2.0, "name": "Salz"}], "zielKg": 1000.0}, "VERBATIM:500": {"abweichungJe100": 1.1, "ausgleich": "VERBATIM", "ausgleichPosten": null, "freigegeben": true, "issues": ["Rezept „Poulette 8 bis 21 Wochen“ summiert auf 101.10 kg je 100 kg (+1.10 kg). Quelle: Betriebsblatt \"PONDEUSE\" (handschriftlich).", "Verbatim gerechnet: es gehen 505.50 kg in den Mischer, nicht 500.00 kg."], "istEinwaageKg": 505.5, "normiert": false, "rezeptKey": "POULETTE_8_21", "rezeptName": "Poulette 8 bis 21 Wochen", "summeJe100": 101.1, "zeilen": [{"artikelId": "MAIS", "kg": 232.5, "name": "Mais"}, {"artikelId": "SOJA_48", "kg": 20.0, "name": "Sojaschrot 48 % RP"}, {"artikelId": "SOJA_TOURFIE", "kg": 37.5, "name": "Soja torréfié (getoastete Vollfettsoja)"}, {"artikelId": "CONCENTRE_CHAIR", "kg": 25.0, "name": "Concentré chair"}, {"artikelId": "SON_CUBE", "kg": 155.0, "name": "Son cube (Weizenkleie, pelletiert)"}, {"artikelId": "COQUILLE", "kg": 12.5, "name": "Coquille (Muschelschalen-Kalk)"}, {"artikelId": "POISSON", "kg": 15.0, "name": "Fischmehl"}, {"artikelId": "METHIONINE", "kg": 2.5, "name": "Méthionine"}, {"artikelId": "LYSINE", "kg": 2.5, "name": "Lysine"}, {"artikelId": "ALFABIND", "kg": 1.0, "name": "Alfabind (Binder; das Blatt schreibt auch AFABIND)"}, {"artikelId": "PHOSPHATE", "kg": 1.0, "name": "Phosphat"}, {"artikelId": "SEL", "kg": 1.0, "name": "Salz"}], "zielKg": 500.0}}, "herden": [{"einstalldatum": "2026-03-02", "herdeId": "H1", "hoherVirusdruck": false, "name": "Stall Nord", "spaeteSchlachtung": false, "tenantId": "demo", "tierart": "LEGEHENNE", "tierzahl": 1200}], "ich": {"benutzerId": "kofi", "name": "Kofi A.", "rolle": "LEITUNG", "tenantId": "demo"}, "stichtag": "2026-04-30", "tagesbild": {"alterTage": 60, "alterWochen": 9, "ampel": "ROT", "bestellen": [], "demnaechst": [{"ampel": "GRUEN", "bedingt": null, "erledigtAm": null, "faelligBis": "2026-05-05", "faelligVon": "2026-05-02", "herdeId": "H1", "hinweis": "Das Blatt nennt es Diuretikum bzw. hepatorenalen Schutz", "kategorie": "VITAMINE", "lot": null, "praeparate": ["VIGOSINE", "HEPARENOL", "HEPATURYL", "NEPHRYL", "HEPASOL"], "schrittKey": "NOTFALL_V1_ERHOLUNG", "tageBis": 2, "titel": "Nach Gumboro: Futteraufnahme mit Leberschutz wieder anschieben", "verabreichung": "TRINKWASSER"}, {"ampel": "GRUEN", "bedingt": null, "erledigtAm": null, "faelligBis": "2026-05-10", "faelligVon": "2026-05-04", "herdeId": "H1", "hinweis": null, "kategorie": "ANTIKOKZIDIUM", "lot": null, "praeparate": ["VETACOX", "DICLACOX", "AMPROLIUM", "AMPROL", "AMPROSTAT"], "schrittKey": "PONDEUSE_W10_ANTIKOKZIDIUM", "tageBis": 4, "titel": "Antikokzidium über 3 Tage", "verabreichung": "TRINKWASSER"}, {"ampel": "GRUEN", "bedingt": null, "erledigtAm": null, "faelligBis": "2026-05-10", "faelligVon": "2026-05-04", "herdeId": "H1", "hinweis": null, "kategorie": "IMPFUNG", "lot": null, "praeparate": ["H120 + CEVAC IBIRD", "H120 + GALLIVAC IB 88", "H120 + AVI IB VAR"], "schrittKey": "PONDEUSE_W10_IB", "tageBis": 4, "titel": "Bronchite H120 + IB-Variante auffrischen", "verabreichung": "TRINKWASSER"}, {"ampel": "GRUEN", "bedingt": null, "erledigtAm": null, "faelligBis": "2026-05-10", "faelligVon": "2026-05-04", "herdeId": "H1", "hinweis": null, "kategorie": "IMPFUNG", "lot": null, "praeparate": ["HIPRAPOX", "DIFTOSEC", "AVI POX"], "schrittKey": "PONDEUSE_W10_VARIOLE_RAPPEL", "tageBis": 4, "titel": "Pocken-Auffrischung in die Flügelfalte", "verabreichung": "FLUEGELFALTE"}], "erledigt": [{"ampel": "ERLEDIGT", "bedingt": null, "erledigtAm": "2026-03-01", "faelligBis": "2026-03-03", "faelligVon": "2026-03-01", "herdeId": "H1", "hinweis": "Vor dem Einstallen und zwei Tage in Anwesenheit der Küken", "kategorie": "HYGIENE", "lot": "LOT-4711", "praeparate": ["Kupfersulfat 0,5 g/l"], "schrittKey": "PONDEUSE_J0_EINSTREU", "tageBis": -60, "titel": "Einstreu mit Kupfersulfat behandeln", "verabreichung": "SPRUEHUNG"}, {"ampel": "ERLEDIGT", "bedingt": null, "erledigtAm": "2026-03-02", "faelligBis": "2026-03-02", "faelligVon": "2026-03-02", "herdeId": "H1", "hinweis": null, "kategorie": "IMPFUNG", "lot": "LOT-4711", "praeparate": ["CEVAC VITABRON + CEVAC IBIRD", "AVINEW + H120 + CEVAC IBIRD", "AVI ND HB1/IB + CEVAC IBIRD", "HB1/H120 + CEVAC IBIRD"], "schrittKey": "PONDEUSE_J1_ND_IB_LEBEND", "tageBis": -59, "titel": "Newcastle + Bronchite lebend (H120 + Variante)", "verabreichung": "AUGENTROPFEN"}, {"ampel": "ERLEDIGT", "bedingt": null, "erledigtAm": "2026-03-02", "faelligBis": "2026-03-04", "faelligVon": "2026-03-02", "herdeId": "H1", "hinweis": "Im Brüter — oder an J3 im Betrieb", "kategorie": "IMPFUNG", "lot": "LOT-4711", "praeparate": ["CEVAC BROILER NDK 0,1 ml (nur im Brüter)", "IMOPEST 0,3 ml", "CEVAC NEW K 0,3 ml", "ITA-NEW ND 0,3 ml"], "schrittKey": "PONDEUSE_J1_ND_INAKTIVIERT", "tageBis": -59, "titel": "Newcastle inaktiviert, subkutan", "verabreichung": "INJEKTION"}, {"ampel": "ERLEDIGT", "bedingt": null, "erledigtAm": "2026-03-02", "faelligBis": "2026-03-02", "faelligVon": "2026-03-02", "herdeId": "H1", "hinweis": null, "kategorie": "VITAMINE", "lot": "LOT-4711", "praeparate": ["Zuckerwasser 50 g/l", "Vitamin C 0,5 g/l", "HEPASOL", "VIGOSINE"], "schrittKey": "PONDEUSE_J1_START", "tageBis": -59, "titel": "Starttrunk: Zuckerwasser bzw. Vitamin C", "verabreichung": "TRINKWASSER"}, {"ampel": "ERLEDIGT", "bedingt": null, "erledigtAm": "2026-03-03", "faelligBis": "2026-03-07", "faelligVon": "2026-03-03", "herdeId": "H1", "hinweis": null, "kategorie": "MEDIKATION", "lot": "LOT-4711", "praeparate": ["COVIT", "TETRACOLIVIT", "COLITERRAVET", "COLIVET", "PANTERYL", "VIGAL 2X", "SUPER LAYER"], "schrittKey": "PONDEUSE_J2_ANTIBIOTIKUM", "tageBis": -58, "titel": "Antibiotika + Vitamine", "verabreichung": "TRINKWASSER"}, {"ampel": "ERLEDIGT", "bedingt": null, "erledigtAm": "2026-03-08", "faelligBis": "2026-03-08", "faelligVon": "2026-03-08", "herdeId": "H1", "hinweis": "Augentropfen oder Trinkwasser", "kategorie": "IMPFUNG", "lot": "LOT-4711", "praeparate": ["CEVAC GUMBO L", "AVI IBD INTER", "HIPRAGUMBORO CH80", "BUR706"], "schrittKey": "PONDEUSE_J7_GUMBORO_1", "tageBis": -53, "titel": "1. Gumboro-Impfung (intermediärer Stamm)", "verabreichung": "TRINKWASSER"}, {"ampel": "ERLEDIGT", "bedingt": null, "erledigtAm": "2026-03-11", "faelligBis": "2026-03-11", "faelligVon": "2026-03-11", "herdeId": "H1", "hinweis": null, "kategorie": "IMPFUNG", "lot": "LOT-4711", "praeparate": ["CEVAC VITABRON + CEVAC IBIRD", "AVINEW + H120 + CEVAC IBIRD", "HB1/H120 + CEVAC IBIRD", "AVI ND HB1/IB + CEVAC IBIRD"], "schrittKey": "PONDEUSE_J10_ND_IB_RAPPEL", "tageBis": -50, "titel": "Newcastle + Bronchite lebend auffrischen", "verabreichung": "TRINKWASSER"}, {"ampel": "ERLEDIGT", "bedingt": null, "erledigtAm": "2026-03-13", "faelligBis": "2026-03-13", "faelligVon": "2026-03-13", "herdeId": "H1", "hinweis": null, "kategorie": "IMPFUNG", "lot": "LOT-4711", "praeparate": ["CEVAC IBDL", "AVI IBD PLUS", "NOBILIS 228E", "HIPRAGUMBORO GM97"], "schrittKey": "PONDEUSE_J12_GUMBORO_2", "tageBis": -48, "titel": "2. Gumboro-Impfung (intermediate plus)", "verabreichung": "TRINKWASSER"}, {"ampel": "ERLEDIGT", "bedingt": null, "erledigtAm": "2026-03-18", "faelligBis": "2026-03-18", "faelligVon": "2026-03-18", "herdeId": "H1", "hinweis": null, "kategorie": "IMPFUNG", "lot": "LOT-4711", "praeparate": ["CEVAC IBDL", "AVI IBD PLUS", "NOBILIS 228 E", "HIPRAGUMBORO GM97"], "schrittKey": "PONDEUSE_J17_GUMBORO_3", "tageBis": -43, "titel": "3. Gumboro-Impfung (intermediate plus)", "verabreichung": "TRINKWASSER"}, {"ampel": "ERLEDIGT", "bedingt": null, "erledigtAm": "2026-03-19", "faelligBis": "2026-03-21", "faelligVon": "2026-03-19", "herdeId": "H1", "hinweis": null, "kategorie": "ANTIKOKZIDIUM", "lot": "LOT-4711", "praeparate": ["VETACOX", "DICLACOX", "ANTICOX", "AMPROLIUM", "AMPROL", "AMPROSTAT"], "schrittKey": "PONDEUSE_J18_ANTIKOKZIDIUM", "tageBis": -42, "titel": "Antikokzidium", "verabreichung": "TRINKWASSER"}, {"ampel": "ERLEDIGT", "bedingt": null, "erledigtAm": "2026-03-22", "faelligBis": "2026-03-22", "faelligVon": "2026-03-22", "herdeId": "H1", "hinweis": null, "kategorie": "IMPFUNG", "lot": "LOT-4711", "praeparate": ["AVINEW", "HB1", "CLONE", "+ Bronchite H120"], "schrittKey": "PONDEUSE_J21_ND_IB", "tageBis": -39, "titel": "Newcastle-Auffrischung + Bronchite H120", "verabreichung": "TRINKWASSER"}, {"ampel": "ERLEDIGT", "bedingt": null, "erledigtAm": "2026-03-24", "faelligBis": "2026-03-27", "faelligVon": "2026-03-24", "herdeId": "H1", "hinweis": null, "kategorie": "MEDIKATION", "lot": "LOT-4711", "praeparate": ["COVIT", "TETRACOLIVIT", "COLITERRAVET", "COLIVET", "PANTERYL", "VIGAL 2X", "SUPER LAYER"], "schrittKey": "PONDEUSE_J23_ANTIBIOTIKUM", "tageBis": -37, "titel": "Antibiotika + Vitamine", "verabreichung": "TRINKWASSER"}, {"ampel": "ERLEDIGT", "bedingt": null, "erledigtAm": "2026-03-29", "faelligBis": "2026-04-02", "faelligVon": "2026-03-29", "herdeId": "H1", "hinweis": null, "kategorie": "VITAMINE", "lot": "LOT-4711", "praeparate": ["VITAFLASH", "VITAPEROS", "AD3E+C", "AMIN'TOTAL"], "schrittKey": "PONDEUSE_J28_VITAMINE", "tageBis": -32, "titel": "Vitamine", "verabreichung": "TRINKWASSER"}, {"ampel": "ERLEDIGT", "bedingt": null, "erledigtAm": "2026-03-30", "faelligBis": "2026-04-05", "faelligVon": "2026-03-30", "herdeId": "H1", "hinweis": "VECTORMUNE FP-MG schützt zusätzlich gegen Mykoplasmen", "kategorie": "IMPFUNG", "lot": "LOT-4711", "praeparate": ["HIPRAPOX", "DIFTOSEC", "AVI POX", "VECTORMUNE FP-MG"], "schrittKey": "PONDEUSE_W5_VARIOLE", "tageBis": -31, "titel": "Pocken-Impfung (Variole) in die Flügelfalte", "verabreichung": "FLUEGELFALTE"}, {"ampel": "ERLEDIGT", "bedingt": null, "erledigtAm": "2026-04-05", "faelligBis": "2026-04-10", "faelligVon": "2026-04-05", "herdeId": "H1", "hinweis": null, "kategorie": "IMPFUNG", "lot": "LOT-4711", "praeparate": ["LA SOTA", "CLONE", "AVINEW"], "schrittKey": "PONDEUSE_D35_ND_RAPPEL", "tageBis": -25, "titel": "Newcastle-Auffrischung im Trinkwasser", "verabreichung": "TRINKWASSER"}, {"ampel": "ERLEDIGT", "bedingt": null, "erledigtAm": "2026-04-06", "faelligBis": "2026-04-12", "faelligVon": "2026-04-06", "herdeId": "H1", "hinweis": null, "kategorie": "ANTIKOKZIDIUM", "lot": "LOT-4711", "praeparate": ["VETACOX", "DICLACOX", "AMPROLIUM", "AMPROL", "AMPROSTAT"], "schrittKey": "PONDEUSE_W6_ANTIKOKZIDIUM", "tageBis": -24, "titel": "Antikokzidium über 3 Tage", "verabreichung": "TRINKWASSER"}, {"ampel": "ERLEDIGT", "bedingt": null, "erledigtAm": "2026-04-12", "faelligBis": "2026-04-21", "faelligVon": "2026-04-12", "herdeId": "H1", "hinweis": "Fenster relativ zum tatsächlichen Débecquage-Tag, nicht zur Woche", "kategorie": "VITAMINE", "lot": "LOT-4711", "praeparate": ["VIGAL 2X", "PANTERYL", "TETRACOLIVIT", "SUPER LAYER", "+ Vitamin K"], "schrittKey": "PONDEUSE_W7_VITAMIN_K", "tageBis": -18, "titel": "Vitamin K + Stützmittel um das Débecquage (j-1 bis j+2)", "verabreichung": "TRINKWASSER"}, {"ampel": "ERLEDIGT", "bedingt": null, "erledigtAm": "2026-04-13", "faelligBis": "2026-04-19", "faelligVon": "2026-04-13", "herdeId": "H1", "hinweis": "Vitamin K und Stützmittel von j-1 bis j+2 — siehe Folgeschritt", "kategorie": "EINGRIFF", "lot": "LOT-4711", "praeparate": [], "schrittKey": "PONDEUSE_W7_DEBECQUAGE", "tageBis": -17, "titel": "Schnabelkürzen (Débecquage)", "verabreichung": "HANDGRIFF"}, {"ampel": "ERLEDIGT", "bedingt": null, "erledigtAm": "2026-04-13", "faelligBis": "2026-04-19", "faelligVon": "2026-04-13", "herdeId": "H1", "hinweis": null, "kategorie": "IMPFUNG", "lot": "LOT-4711", "praeparate": ["IMOPEST", "CEVAC NEW K", "ITA-NEW ND", "NEWCAVAC"], "schrittKey": "PONDEUSE_W7_ND_INAKTIVIERT", "tageBis": -17, "titel": "Newcastle inaktiviert, Injektion (am Tag des Débecquage)", "verabreichung": "INJEKTION"}], "futter": {"bedarfBisHorizontKg": 1140.72, "bedarfJeTagKg": 81.48, "bestellenAb": "2026-05-02", "grammJeTierTag": 67.9, "herdeId": "H1", "horizontTage": 14, "issues": ["1 Mischung(en) nicht in die Kurve eingerechnet (letzte Mischung noch im Trog, zu kurzer Abstand oder unplausibel)."], "quelle": "GEMESSEN", "reichtBis": "2026-05-07", "stichtag": "2026-04-30", "vorratKg": 650.0, "woche": 9}, "herde": {"einstalldatum": "2026-03-02", "herdeId": "H1", "hoherVirusdruck": false, "name": "Stall Nord", "spaeteSchlachtung": false, "tenantId": "demo", "tierart": "LEGEHENNE", "tierzahl": 1200}, "heute": [{"ampel": "GELB", "bedingt": null, "erledigtAm": null, "faelligBis": "2026-04-30", "faelligVon": "2026-04-27", "herdeId": "H1", "hinweis": null, "kategorie": "IMPFUNG", "lot": null, "praeparate": ["LA SOTA", "CLONE", "AVINEW"], "schrittKey": "PONDEUSE_D57_ND_WASSER", "tageBis": -3, "titel": "Newcastle-Auffrischung im Trinkwasser", "verabreichung": "TRINKWASSER"}, {"ampel": "GELB", "bedingt": null, "erledigtAm": null, "faelligBis": "2026-05-03", "faelligVon": "2026-04-27", "herdeId": "H1", "hinweis": null, "kategorie": "ENTWURMUNG", "lot": null, "praeparate": ["POLYSTRONGLE", "LEVASOL 20%", "LEVALAP"], "schrittKey": "PONDEUSE_W9_ENTWURMUNG", "tageBis": -3, "titel": "Entwurmung", "verabreichung": "TRINKWASSER"}, {"ampel": "GELB", "bedingt": null, "erledigtAm": null, "faelligBis": "2026-05-01", "faelligVon": "2026-04-28", "herdeId": "H1", "hinweis": "Ausgelöst durch Vorfall vom 28.04.2026", "kategorie": "MEDIKATION", "lot": null, "praeparate": ["VIRKON oder VIRUNET (1 g/l)", "+ VETACOX oder AMPROLIUM oder TRISULMYCINE FORTE oder ANTICOX (1 g/l)"], "schrittKey": "NOTFALL_V1_DESINFEKTION", "tageBis": -2, "titel": "Gumboro-Schema: Desinfektion 1 g/l + Antikokzidium 1 g/l (4 Tage)", "verabreichung": "TRINKWASSER"}], "issues": ["PONDEUSE_J17_GUMBORO_3: Das Blatt nennt J12 UND J17 beide '2ème Vaccin GUMBORO' — hier als 2. und 3. Gabe geführt, Zählung des Originals prüfen", "PONDEUSE_D35_ND_RAPPEL: Zeile steht auf dem Blatt in Woche 6 (Tag 36-42), ist dort aber auf Tag 35-40 datiert — die explizite Tagesangabe gilt", "PONDEUSE_D57_ND_WASSER: Das Blatt führt diese Auffrischung zweimal: in der Woche-7-Zeile mit Tag 57-60 und noch einmal als Zeile 'Woche 9' — hier EIN Termin", "NOTFALL_V1_DESINFEKTION: Die Blätter nennen zwei Dosen für dasselbe Mittel: 0,5 g/l (Masthuhn) und 1 g/l (Junghenne). Beide stehen so im NB-Kasten; hier gilt die des eigenen Blattes, solange der Betrieb nichts anderes eingestellt hat.", "Die Blätter überlappen an den Rändern (0-8 und 8-21, 8-21 und ab 21). Hier gilt: Démarrage bis Woche 8, Poulette ab Woche 9, Ponte ab Woche 22.", "1 Mischung(en) nicht in die Kurve eingerechnet (letzte Mischung noch im Trog, zu kurzer Abstand oder unplausibel)."], "phase": {"bisWoche": 21, "key": "POULETTE_8_21", "name": "Poulette 8 bis 21 Wochen", "posten": [{"artikelId": "MAIS", "blattKgJe100": null, "herkunft": "BLATT", "kgJe100": 46.5, "name": "Mais"}, {"artikelId": "SOJA_48", "blattKgJe100": null, "herkunft": "BLATT", "kgJe100": 4.0, "name": "Sojaschrot 48 % RP"}, {"artikelId": "SOJA_TOURFIE", "blattKgJe100": null, "herkunft": "BLATT", "kgJe100": 7.5, "name": "Soja torréfié (getoastete Vollfettsoja)"}, {"artikelId": "CONCENTRE_CHAIR", "blattKgJe100": null, "herkunft": "BLATT", "kgJe100": 5.0, "name": "Concentré chair"}, {"artikelId": "SON_CUBE", "blattKgJe100": null, "herkunft": "BLATT", "kgJe100": 31.0, "name": "Son cube (Weizenkleie, pelletiert)"}, {"artikelId": "COQUILLE", "blattKgJe100": null, "herkunft": "BLATT", "kgJe100": 2.5, "name": "Coquille (Muschelschalen-Kalk)"}, {"artikelId": "POISSON", "blattKgJe100": null, "herkunft": "BLATT", "kgJe100": 3.0, "name": "Fischmehl"}, {"artikelId": "METHIONINE", "blattKgJe100": null, "herkunft": "BLATT", "kgJe100": 0.5, "name": "Méthionine"}, {"artikelId": "LYSINE", "blattKgJe100": null, "herkunft": "BLATT", "kgJe100": 0.5, "name": "Lysine"}, {"artikelId": "ALFABIND", "blattKgJe100": null, "herkunft": "BLATT", "kgJe100": 0.2, "name": "Alfabind (Binder; das Blatt schreibt auch AFABIND)"}, {"artikelId": "PHOSPHATE", "blattKgJe100": null, "herkunft": "BLATT", "kgJe100": 0.2, "name": "Phosphat"}, {"artikelId": "SEL", "blattKgJe100": null, "herkunft": "BLATT", "kgJe100": 0.2, "name": "Salz"}], "quelle": "Betriebsblatt \"PONDEUSE\" (handschriftlich)", "tierart": "LEGEHENNE", "vonWoche": 9}, "stichtag": "2026-04-30", "ueberfaellig": [{"ampel": "ROT", "bedingt": null, "erledigtAm": null, "faelligBis": "2026-04-29", "faelligVon": "2026-04-26", "herdeId": "H1", "hinweis": "Das Blatt verlangt den Schutz bei JEDEM Futterwechsel", "kategorie": "FUTTERWECHSEL", "lot": null, "praeparate": ["VIGOSINE", "HEPARENOL", "HEPATURYL", "NEPHRYL", "HEPASOL"], "schrittKey": "FUTTERWECHSEL_W57", "tageBis": -4, "titel": "Futterwechsel auf Poulette 8 bis 21 Wochen — Leberschutz mitgeben", "verabreichung": "TRINKWASSER"}], "vermerke": [{"angelegtAm": "2026-04-21", "betrifft": "Rezept POULETTE_8_21", "erledigtAm": null, "erledigtDurch": null, "tenantId": "demo", "text": "Ausgeglichen über MAIS: 46.50 → 45.40 kg je 100 kg. Als Prüfvermerk hinterlegt.", "vermerkId": "ausgleich:POULETTE_8_21"}], "vorfaelle": [{"art": "GUMBORO", "bemerkung": "Tiere apathisch, Kot wässrig", "ereignisId": "V1", "festgestelltAm": "2026-04-28", "herdeId": "H1", "tenantId": "demo"}]}};
+const antwort = (inhalt, status = 200) =>
+  Promise.resolve(new Response(JSON.stringify(inhalt),
+    { status, headers: { "content-type": "application/json" } }));
+
+function verschiebe(schrittKey, erledigt) {
+  const bild = DEMO.tagesbild;
+  const toepfe = ["ueberfaellig", "heute", "demnaechst", "bestellen", "erledigt"];
+  let posten = null;
+  for (const topf of toepfe) {
+    const stelle = bild[topf].findIndex((t) => t.schrittKey === schrittKey);
+    if (stelle >= 0) { posten = bild[topf].splice(stelle, 1)[0]; break; }
+  }
+  if (!posten) return;
+  if (erledigt) {
+    posten.ampel = "ERLEDIGT";
+    posten.erledigtAm = DEMO.stichtag;
+    posten.lot = "LOT-4711";
+    bild.erledigt.push(posten);
+  } else {
+    posten.ampel = "ROT";
+    posten.erledigtAm = null;
+    posten.lot = null;
+    bild.ueberfaellig.push(posten);
+  }
+  bild.ampel = bild.ueberfaellig.length ? "ROT" : (bild.heute.length ? "GELB" : "GRUEN");
+}
+
+const echtesFetch = window.fetch.bind(window);
+window.fetch = async (pfad, optionen) => {
+  if (typeof pfad !== "string" || !pfad.startsWith("/api/")) {
+    return echtesFetch(pfad, optionen);
+  }
+  const daten = optionen && optionen.body ? JSON.parse(optionen.body) : {};
+  if (pfad === "/api/ich") return antwort(DEMO.ich);
+  if (pfad.startsWith("/api/herden")) return antwort({ herden: DEMO.herden });
+  if (pfad.startsWith("/api/tagesbild")) return antwort(DEMO.tagesbild);
+  if (pfad === "/api/quittung") {
+    verschiebe(daten.schritt, true);
+    return antwort({ neu: true, quittungId: daten.schritt });
+  }
+  if (pfad === "/api/quittung/widerrufen") {
+    verschiebe(daten.quittungId, false);
+    return antwort({ widerrufen: true });
+  }
+  if (pfad === "/api/mischung") {
+    const auftrag = DEMO.auftraege[(daten.art || "AUSGLEICH") + ":" + daten.kg];
+    if (!auftrag) {
+      return antwort({ fehler: "In der Demo sind nur 500 und 1000 kg gerechnet." }, 400);
+    }
+    return antwort({ auftrag: auftrag, gebucht: false });
+  }
+  if (pfad === "/api/vermerk/abhaken") {
+    DEMO.tagesbild.vermerke = DEMO.tagesbild.vermerke.filter(
+      (v) => v.vermerkId !== daten.vermerkId);
+    return antwort({ abgehakt: true });
+  }
+  if (pfad === "/api/vorfall") {
+    return antwort({ fehler: "In der Demo nicht möglich — das Schema läuft bereits." }, 400);
+  }
+  if (pfad === "/api/abmelden") return antwort({ abgemeldet: true });
+  return antwort({ fehler: "In der Demo nicht vorhanden." }, 404);
+};
+</script>
+<script>
+const $ = (id) => document.getElementById(id);
+const heute = () => "2026-04-30";
+let bild = null;
+let letzteQuittung = null;
+
+function zeichen(ampel) {
+  return { ROT: "!", GELB: "\u203a", GRUEN: "\u00b7", ERLEDIGT: "\u2713" }[ampel] || "";
+}
+function wort(ampel) {
+  return { ROT: "überfällig", GELB: "jetzt dran", GRUEN: "geplant", ERLEDIGT: "erledigt" }[ampel];
+}
+function fenster(t) {
+  const kurz = (s) => s.slice(8, 10) + "." + s.slice(5, 7) + ".";
+  return t.faelligVon === t.faelligBis ? kurz(t.faelligVon)
+       : kurz(t.faelligVon) + "\u2013" + kurz(t.faelligBis);
+}
+
+async function hole(pfad, optionen) {
+  const antwort = await fetch(pfad, optionen);
+  if (antwort.status === 401) { window.location.href = "/anmelden"; throw new Error("abgemeldet"); }
+  const inhalt = await antwort.json();
+  if (!antwort.ok) throw new Error(inhalt.fehler || "Unbekannter Fehler");
+  return inhalt;
+}
+
+function melde(text, rueckgaengig) {
+  $("toasttext").textContent = text;
+  $("undo").hidden = !rueckgaengig;
+  $("toast").hidden = false;
+  clearTimeout(melde.uhr);
+  melde.uhr = setTimeout(() => { $("toast").hidden = true; }, 9000);
+}
+
+function postenZeile(t, mitKnopf) {
+  const li = document.createElement("li");
+  li.className = "posten " + t.ampel;
+  const kopf = document.createElement("div");
+  kopf.className = "reihe";
+  const links = document.createElement("div");
+  const titel = document.createElement("div");
+  titel.className = "titel";
+  titel.textContent = zeichen(t.ampel) + " " + t.titel;
+  links.appendChild(titel);
+  if (t.praeparate && t.praeparate.length) {
+    const m = document.createElement("div");
+    m.className = "mittel";
+    m.textContent = t.praeparate.join(" / ");
+    links.appendChild(m);
+  }
+  if (t.hinweis) {
+    const h = document.createElement("div");
+    h.className = "mittel";
+    h.textContent = t.hinweis;
+    links.appendChild(h);
+  }
+  if (t.erledigtAm) {
+    const e = document.createElement("div");
+    e.className = "mittel";
+    e.textContent = "erledigt am " + t.erledigtAm + (t.lot ? " \u00b7 Charge " + t.lot : "");
+    links.appendChild(e);
+  }
+  kopf.appendChild(links);
+  const rechts = document.createElement("div");
+  const frist = document.createElement("div");
+  frist.className = "frist " + t.ampel;
+  frist.textContent = fenster(t) + " \u00b7 " + wort(t.ampel);
+  rechts.appendChild(frist);
+  if (mitKnopf) {
+    const knopf = document.createElement("button");
+    knopf.className = "tat";
+    knopf.type = "button";
+    knopf.textContent = "Erledigt";
+    knopf.style.marginTop = "6px";
+    knopf.onclick = () => quittiere(t);
+    rechts.appendChild(knopf);
+  }
+  kopf.appendChild(rechts);
+  li.appendChild(kopf);
+  return li;
+}
+
+function fuelle(id, liste, mitKnopf) {
+  const block = $(id);
+  const ul = block.querySelector("ul");
+  ul.replaceChildren();
+  liste.forEach((t) => ul.appendChild(postenZeile(t, mitKnopf)));
+  block.hidden = liste.length === 0;
+}
+
+async function ladeHerden() {
+  const daten = await hole("/api/herden");
+  const wahl = $("herde");
+  const vorher = wahl.value;
+  wahl.replaceChildren();
+  daten.herden.forEach((h) => {
+    const o = document.createElement("option");
+    o.value = h.herdeId;
+    o.textContent = h.name + " (" + h.herdeId + ")";
+    wahl.appendChild(o);
+  });
+  if (vorher) wahl.value = vorher;
+  return daten.herden.length;
+}
+
+async function lade() {
+  $("zustand").hidden = false;
+  $("zustand").textContent = "Lade \u2026";
+  try {
+    const ich = await hole("/api/ich");
+    $("wer").textContent = ich.name + " \u00b7 " + ich.tenantId + " \u00b7 " + ich.rolle;
+    document.body.dataset.rolle = ich.rolle;
+    const anzahl = await ladeHerden();
+    if (!anzahl) {
+      $("zustand").textContent =
+        "Noch keine Herde für diesen Betrieb. Anlegen mit: elevage einstallen \u2026";
+      ["kopfzahlen", "futter", "block-ueberfaellig", "block-heute", "block-bestellen",
+       "block-demnaechst", "block-erledigt", "block-befunde"].forEach((i) => $(i).hidden = true);
+      return;
+    }
+    const p = new URLSearchParams({
+      herde: $("herde").value, stichtag: $("stichtag").value,
+    });
+    if ($("vorrat").value) p.set("vorrat", $("vorrat").value);
+    bild = await hole("/api/tagesbild?" + p);
+    zeige();
+    $("zustand").hidden = true;
+  } catch (fehler) {
+    $("zustand").hidden = false;
+    $("zustand").textContent = "Das hat nicht geklappt: " + fehler.message;
+  }
+}
+
+function zeige() {
+  $("lage").textContent = zeichen(bild.ampel) + " " + wort(bild.ampel);
+  $("lage").className = "lage " + bild.ampel;
+  $("alter").textContent =
+    "Tag " + bild.alterTage + " \u00b7 Woche " + bild.alterWochen + " \u00b7 "
+    + bild.herde.tierzahl + " Tiere";
+  $("phase").textContent = bild.phase ? "Futterphase: " + bild.phase.name
+                                      : "Für diese Linie liegt kein Futterblatt vor.";
+  $("kopfzahlen").hidden = false;
+
+  const f = bild.futter;
+  if (f && f.bedarfJeTagKg !== null) {
+    let text = f.grammJeTierTag + " g/Tier/Tag \u00b7 " + f.bedarfJeTagKg + " kg am Tag \u00b7 "
+             + f.bedarfBisHorizontKg + " kg für " + f.horizontTage + " Tage";
+    if (f.reichtBis) text += " \u00b7 Vorrat reicht bis " + f.reichtBis
+                           + ", bestellen ab " + f.bestellenAb;
+    $("futtertext").textContent = text;
+    $("futterherkunft").textContent =
+      f.quelle === "GEMESSEN" ? "Aus dem eigenen Mischprotokoll gerechnet."
+                              : "Richtwert \u2014 keine Zahl dieses Betriebs.";
+    $("futter").hidden = false;
+  } else { $("futter").hidden = true; }
+
+  fuelle("block-ueberfaellig", bild.ueberfaellig, true);
+  fuelle("block-heute", bild.heute, true);
+  fuelle("block-bestellen", bild.bestellen, false);
+  const schonGenannt = new Set(bild.bestellen.map((t) => t.schrittKey));
+  fuelle(
+    "block-demnaechst",
+    bild.demnaechst.filter((t) => !schonGenannt.has(t.schrittKey)),
+    false
+  );
+  fuelle("block-erledigt", bild.erledigt.slice(-5), false);
+
+  const liste = $("vermerke");
+  liste.replaceChildren();
+  (bild.vermerke || []).forEach((v) => {
+    const li = document.createElement("li");
+    li.className = "posten GELB";
+    const reihe = document.createElement("div");
+    reihe.className = "reihe";
+    const links = document.createElement("div");
+    const kopf = document.createElement("div");
+    kopf.className = "titel";
+    kopf.textContent = "› " + v.betrifft;
+    const text = document.createElement("div");
+    text.className = "mittel";
+    text.textContent = v.text;
+    links.append(kopf, text);
+    const knopf = document.createElement("button");
+    knopf.className = "tat";
+    knopf.type = "button";
+    knopf.textContent = "Geprüft";
+    knopf.onclick = () => hakeAb(v);
+    reihe.append(links, knopf);
+    li.appendChild(reihe);
+    liste.appendChild(li);
+  });
+  $("block-vermerke").hidden = (bild.vermerke || []).length === 0;
+
+  const kasten = $("befunde");
+  kasten.replaceChildren();
+  bild.issues.forEach((i) => {
+    const p = document.createElement("p");
+    p.className = "befund";
+    p.textContent = i;
+    kasten.appendChild(p);
+  });
+  $("block-befunde").hidden = bild.issues.length === 0;
+}
+
+async function quittiere(t) {
+  try {
+    const antwort = await hole("/api/quittung", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({
+        herde: $("herde").value, schritt: t.schrittKey, am: $("stichtag").value,
+      }),
+    });
+    letzteQuittung = antwort.quittungId;
+    melde("\u201e" + t.titel + "\u201c abgehakt.", true);
+    await lade();
+  } catch (fehler) { melde("Nicht abgehakt: " + fehler.message, false); }
+}
+
+$("undo").onclick = async () => {
+  if (!letzteQuittung) return;
+  await hole("/api/quittung/widerrufen", {
+    method: "POST", headers: { "content-type": "application/json" },
+    body: JSON.stringify({ quittungId: letzteQuittung }),
+  });
+  letzteQuittung = null;
+  $("toast").hidden = true;
+  await lade();
+};
+
+async function hakeAb(v) {
+  try {
+    await hole("/api/vermerk/abhaken", {
+      method: "POST", headers: { "content-type": "application/json" },
+      body: JSON.stringify({ vermerkId: v.vermerkId, am: $("stichtag").value }),
+    });
+    melde("Als geprüft abgehakt.", false);
+    await lade();
+  } catch (fehler) { melde("Nicht abgehakt: " + fehler.message, false); }
+}
+
+async function rechne(buchen) {
+  const koerper = {
+    herde: $("herde").value, kg: Number($("menge").value),
+    am: $("stichtag").value, art: $("art").value, buchen: !!buchen,
+  };
+  const ziel = $("mischung");
+  try {
+    const a = await hole("/api/mischung", {
+      method: "POST", headers: { "content-type": "application/json" },
+      body: JSON.stringify(koerper),
+    });
+    ziel.replaceChildren();
+    if (!a.auftrag) { ziel.textContent = "Kein Rezept für diese Linie."; return; }
+    const t = document.createElement("table");
+    const kopf = t.createTHead().insertRow();
+    ["Rohstoff", "kg"].forEach((x, i) => {
+      const th = document.createElement("th");
+      th.textContent = x; if (i) th.className = "zahl"; kopf.appendChild(th);
+    });
+    const koerperEl = t.createTBody();
+    a.auftrag.zeilen.forEach((z) => {
+      const r = koerperEl.insertRow();
+      r.insertCell().textContent = z.name;
+      const c = r.insertCell(); c.textContent = z.kg.toFixed(2); c.className = "zahl";
+    });
+    const summe = koerperEl.insertRow();
+    summe.insertCell().textContent = "Ist-Einwaage";
+    const sc = summe.insertCell();
+    sc.textContent = a.auftrag.istEinwaageKg.toFixed(2); sc.className = "zahl";
+    summe.style.fontWeight = "700";
+    ziel.appendChild(t);
+    a.auftrag.issues.forEach((i) => {
+      const p = document.createElement("p"); p.className = "befund"; p.textContent = i;
+      ziel.appendChild(p);
+    });
+    $("buchen").hidden = !a.auftrag.freigegeben || a.auftrag.ausgleich === "VERBATIM";
+    if (buchen) melde(a.gebucht ? "Mischung protokolliert." : "Nicht gebucht.", false);
+  } catch (fehler) { ziel.textContent = "Das hat nicht geklappt: " + fehler.message; }
+}
+
+$("rechnen").onclick = () => rechne(false);
+$("buchen").onclick = () => rechne(true).then(lade);
+
+$("melden").onclick = async () => {
+  try {
+    await hole("/api/vorfall", {
+      method: "POST", headers: { "content-type": "application/json" },
+      body: JSON.stringify({
+        herde: $("herde").value, art: $("vorfallart").value,
+        am: $("vorfalltag").value, bemerkung: $("vorfalltext").value || null,
+      }),
+    });
+    melde("Vorfall aufgenommen \u2014 das Schema steht im Plan.", false);
+    $("vorfalltext").value = "";
+    await lade();
+  } catch (fehler) { melde("Nicht aufgenommen: " + fehler.message, false); }
+};
+
+$("thema").onclick = () => {
+  const jetzt = document.documentElement.dataset.thema;
+  document.documentElement.dataset.thema = jetzt === "dunkel" ? "hell" : "dunkel";
+};
+
+$("abmelden").onclick = async () => {
+  await fetch("/api/abmelden", { method: "POST" });
+  window.location.href = "/anmelden";
+};
+
+$("laden").onclick = lade;
+$("herde").onchange = lade;
+$("stichtag").value = heute();
+$("vorfalltag").value = heute();
+lade();
+</script>
+</body>
+</html>

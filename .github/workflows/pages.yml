@@ -1,0 +1,56 @@
+# Veröffentlicht die Demo auf GitHub Pages.
+#
+# Die Seite wird im Lauf NEU GEBAUT und gegen die eingecheckte Datei
+# verglichen — eine Demo, die von der Engine abgedriftet ist, geht nicht
+# online, sie lässt den Lauf scheitern.
+name: Pages
+
+on:
+  push:
+    branches: [claude/was-siehst-du-alles-d6d2x0, main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: pages
+  cancel-in-progress: false
+
+jobs:
+  bauen:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Abhängigkeiten
+        run: python -m pip install --quiet -e ".[dev]"
+      - name: Gate — dieselben vier wie lokal
+        run: |
+          python -m ruff format --check .
+          python -m ruff check .
+          python -m mypy
+          python -m pytest -q
+      - name: Demo bauen und auf Abdrift prüfen
+        run: |
+          python -m tools.baue_demo
+          git diff --exit-code docs/
+      - uses: actions/configure-pages@v5
+        with:
+          enablement: true
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: docs
+  veroeffentlichen:
+    needs: bauen
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deploy.outputs.page_url }}
+    steps:
+      - id: deploy
+        uses: actions/deploy-pages@v4

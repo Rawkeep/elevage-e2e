@@ -16,9 +16,12 @@ python3 -m elevage.cli demo                       # drei Szenarien, ohne Datenba
 python3 -m elevage.cli einstallen --betrieb hof --herde H1 --name "Stall Nord" \
     --tierart LEGEHENNE --einstall 2026-03-02 --tiere 1200
 python3 -m elevage.cli herden --betrieb hof
-python3 -m elevage.cli tagesbild --betrieb hof --herde H1 --stichtag 2026-03-06 --mischen 500
+python3 -m elevage.cli tagesbild --betrieb hof --herde H1 --stichtag 2026-03-06 --mischen 500 --vorrat 400
 python3 -m elevage.cli quittieren --betrieb hof --herde H1 \
     --schritt PONDEUSE_J7_GUMBORO_1 --am 2026-03-08 --durch Kofi --lot LOT-4711
+python3 -m elevage.cli gemischt --betrieb hof --herde H1 --kg 500 --am 2026-03-09
+python3 -m elevage.cli verzehr --betrieb hof --herde H1
+python3 -m elevage.cli vorfall --betrieb hof --herde H1 --art GUMBORO --am 2026-03-24
 python3 -m elevage.cli ausstallen --betrieb hof --herde H1   # Historie bleibt
 
 python3 -m elevage.cli mischung --rezept PONTE_AB_21 --kg 1000 [--normieren]
@@ -40,11 +43,46 @@ ein Wächter-Job daran hängen, ohne die Ausgabe zu lesen.
 | `plan.py` | Vorlage + Herde = Termine mit echten Daten, Ampel, Quittungen |
 | `mischung.py` | Rezept × Chargengröße, mit Summenprobe und Sperre |
 | `takt.py` | `rechne(herde, stichtag)` — das ganze Tagesbild |
-| `archiv.py` | SQLite (Stdlib): Herden, Quittungen, Mischprotokoll, Migrationen |
+| `notfall.py` | Gumboro-Schema und Leberschutz beim Futterwechsel (NB-Kasten) |
+| `verzehr.py` | Verzehrkurve: gemessen aus dem Mischprotokoll, sonst Richtwert |
+| `archiv.py` | SQLite (Stdlib): Herden, Quittungen, Mischprotokoll, Vorfälle |
+| `betrieb.py` | Die Naht: Archiv rein, Tagesbild raus |
 | `cli.py` | Dünne Schale, keine eigene Logik |
 
-Datenfluss: `Herde` + `Stichtag` → `plan.baue_termine()` → `takt.rechne()`
-→ `Tagesbild`. Die Oberfläche hängt nur daran und ist austauschbar.
+Datenfluss: `Herde` + `Stichtag` → `plan.schritte_fuer()` (Programm +
+Legeperiode + Futterwechsel + ausgelöste Notfallschemata) →
+`plan.baue_termine()` → `takt.rechne()` → `Tagesbild`. Die Oberfläche hängt
+nur daran und ist austauschbar.
+
+## Die Verzehrkurve lernt sich selbst
+
+Ohne g/Tier/Tag gibt es keine Reichweite und keinen Bestelltag. Die Zahl
+kommt aus zwei Quellen, in dieser Reihenfolge:
+
+1. **Gemessen** aus dem eigenen Mischprotokoll — was zwischen zwei
+   Mischungen verbraucht wurde, geteilt durch Tierzahl und Tage. Rasse,
+   Klima und Fütterung stecken darin schon drin.
+2. **Richtwert** als Lückenfüller. Die Werte in `verzehr.py` sind grobe
+   Orientierung, **keine Betriebsdaten**, und werden von jedem gemessenen
+   Punkt geschlagen.
+
+Jeder Kurvenpunkt trägt seine Herkunft, und jede Prognose auf Richtwerten
+sagt das im Klartext. Drei protokollierte Mischungen genügen, damit die
+ersten Wochen auf eigenen Zahlen stehen.
+
+## Was ein Vorfall auslöst
+
+`elevage vorfall --art GUMBORO --am …` legt ein Ereignis ab und erzeugt
+daraus zwei ganz normale Schritte — gleiche Ampel, gleiche Quittung:
+
+| Tage | Schritt |
+|---|---|
+| Tag des Vorfalls + 3 | Desinfektion (VIRKON/VIRUNET) + Antikokzidium 1 g/l |
+| danach + 3 | Leberschutz, um die Futteraufnahme wieder anzuschieben |
+
+Dazu ohne Ereignis, aus den Rezepten abgeleitet: **Leberschutz von j-1 bis
+j+2 um jeden Futterwechsel** (Tag 57 und Tag 148) — das verlangt der
+NB-Kasten des Junghennen-Blattes, und es steht in keinem Tagesraster.
 
 ## Regeln, die nicht gebrochen werden
 
@@ -85,6 +123,7 @@ Datenfluss: `Herde` + `Stichtag` → `plan.baue_termine()` → `takt.rechne()`
 | Woche-6-Zeile ist auf Tag 35–40 datiert, Woche 6 ist Tag 36–42 | `programme.py` |
 | Futterphasen überlappen an den Rändern (0–8/8–21, 8–21/ab 21) | `rezepte.py` |
 | Für Masthühner liegt **kein** Futterblatt vor | `rezepte.py` |
+| Notfall-Dosis: 0,5 g/l (Masthuhn) vs. 1 g/l (Junghenne) — zwei Zahlen für dasselbe Mittel | `notfall.py` |
 
 Quelle der Prophylaxe-Programme: IVOGRAIN. Quelle der Rezepturen:
 handschriftliche Betriebsblätter.

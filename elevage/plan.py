@@ -8,7 +8,8 @@ from __future__ import annotations
 
 from datetime import date, timedelta
 
-from elevage.models import Ampel, Herde, Quittung, Schritt, Termin, Tierart
+from elevage.models import Ampel, Ereignis, Herde, Quittung, Schritt, Termin, Tierart
+from elevage.notfall import futterwechsel_schritte, schritte_fuer_vorfall
 from elevage.programme import LEGEPHASE_AB_WOCHE, WIEDERKEHREND_LEGEPHASE, programm
 
 VORSCHAU_TAGE = 7
@@ -82,10 +83,33 @@ def _wiederkehrende_schritte(herde: Herde, bis_tag: int) -> list[Schritt]:
     return raus
 
 
+def schritte_fuer(
+    herde: Herde,
+    stichtag: date,
+    ereignisse: list[Ereignis] | None = None,
+) -> list[Schritt]:
+    """Programm + Legeperiode + Futterwechsel + ausgelöste Notfallschemata.
+
+    Eine Quelle für Termine UND Befunde — sonst meldet das Tagesbild die
+    Widersprüche des Programms, aber nicht die eines Notfallschemas.
+    """
+    alter = alter_in_tagen(herde, stichtag)
+    horizont = max(alter, 0) + LEGEPHASE_HORIZONT_TAGE
+    schritte = [s for s in programm(herde.tierart) if _gilt(s, herde)]
+    schritte += _wiederkehrende_schritte(herde, horizont)
+    schritte += futterwechsel_schritte(herde)
+    for ereignis in ereignisse or []:
+        if ereignis.herde_id != herde.herde_id or ereignis.tenant_id != herde.tenant_id:
+            continue
+        schritte += schritte_fuer_vorfall(ereignis, herde)
+    return schritte
+
+
 def baue_termine(
     herde: Herde,
     stichtag: date,
     quittungen: list[Quittung] | None = None,
+    ereignisse: list[Ereignis] | None = None,
 ) -> list[Termin]:
     """Alle Termine dieser Herde, chronologisch."""
     quittungen = quittungen or []
@@ -99,10 +123,7 @@ def baue_termine(
         if vorhanden is None or q.erledigt_am < vorhanden.erledigt_am:
             quittiert[q.schritt_key] = q
 
-    alter = alter_in_tagen(herde, stichtag)
-    horizont = max(alter, 0) + LEGEPHASE_HORIZONT_TAGE
-    schritte = [s for s in programm(herde.tierart) if _gilt(s, herde)]
-    schritte += _wiederkehrende_schritte(herde, horizont)
+    schritte = schritte_fuer(herde, stichtag, ereignisse)
 
     termine: list[Termin] = []
     for s in schritte:
@@ -131,10 +152,16 @@ def baue_termine(
     return termine
 
 
-def offene_issues(herde: Herde) -> list[str]:
-    """Widersprüche, die im Programm dieser Tierart stecken."""
+def offene_issues(
+    herde: Herde,
+    stichtag: date,
+    ereignisse: list[Ereignis] | None = None,
+) -> list[str]:
+    """Widersprüche, die in den geltenden Schritten stecken — ohne Dopplung."""
     raus: list[str] = []
-    for s in programm(herde.tierart):
+    for s in schritte_fuer(herde, stichtag, ereignisse):
         for i in s.issues:
-            raus.append(f"{s.key}: {i}")
+            zeile = f"{s.key}: {i}"
+            if zeile not in raus:
+                raus.append(zeile)
     return raus

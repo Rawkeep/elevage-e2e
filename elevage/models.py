@@ -46,6 +46,19 @@ class Verabreichung(str, Enum):
     HANDGRIFF = "HANDGRIFF"
 
 
+class EreignisArt(str, Enum):
+    """Was im Stall passiert ist — löst ein Schema aus, kein Urteil."""
+
+    GUMBORO = "GUMBORO"
+
+
+class Quelle(str, Enum):
+    """Woher eine Zahl kommt. Steht an jeder abgeleiteten Zahl dran."""
+
+    GEMESSEN = "GEMESSEN"
+    RICHTWERT = "RICHTWERT"
+
+
 class Ampel(str, Enum):
     """Vier Zustände wie in fristen.py: erledigt schlägt alles."""
 
@@ -139,6 +152,63 @@ class Dauerregel(_Basis):
     hinweis: str | None = None
 
 
+class Ereignis(_Basis):
+    """Ein festgestellter Vorfall. Wie die Quittung ein Ereignis, kein Feld."""
+
+    tenant_id: str
+    herde_id: str
+    ereignis_id: str
+    art: EreignisArt
+    festgestellt_am: date
+    bemerkung: str | None = None
+
+
+class KurvePunkt(_Basis):
+    woche: int
+    gramm_je_tier_tag: float
+    quelle: Quelle
+    basis: str | None = Field(
+        default=None, description="Woraus die Zahl stammt (z. B. 'Mischung M-3, 500 kg')"
+    )
+
+
+class Verzehrkurve(_Basis):
+    """Was ein Tier je Lebenswoche am Tag frisst.
+
+    Ohne diese Kurve gibt es keine Reichweite und keinen Bestellzeitpunkt.
+    Jeder Punkt trägt seine Quelle — gemessen aus dem eigenen Mischprotokoll
+    oder Richtwert. Eine Prognose, die auf Richtwerten steht, sagt das.
+    """
+
+    tierart: Tierart
+    punkte: list[KurvePunkt] = Field(default_factory=list)
+
+    def fuer_woche(self, woche: int) -> KurvePunkt | None:
+        """Der Punkt dieser Woche — sonst der letzte davor (Kurve hält)."""
+        treffer: KurvePunkt | None = None
+        for p in sorted(self.punkte, key=lambda x: x.woche):
+            if p.woche <= woche:
+                treffer = p
+        return treffer
+
+
+class Futterprognose(_Basis):
+    """Reichweite und Bestelltag — oder eine ehrliche Lücke."""
+
+    herde_id: str
+    stichtag: date
+    woche: int
+    gramm_je_tier_tag: float | None = None
+    quelle: Quelle | None = None
+    bedarf_je_tag_kg: float | None = None
+    bedarf_bis_horizont_kg: float | None = None
+    horizont_tage: int = 0
+    vorrat_kg: float | None = None
+    reicht_bis: date | None = None
+    bestellen_ab: date | None = None
+    issues: list[str] = Field(default_factory=list)
+
+
 class Posten(_Basis):
     artikel_id: str
     name: str
@@ -191,5 +261,7 @@ class Tagesbild(_Basis):
     demnaechst: list[Termin] = Field(default_factory=list)
     bestellen: list[Termin] = Field(default_factory=list)
     erledigt: list[Termin] = Field(default_factory=list)
+    futter: Futterprognose | None = None
+    vorfaelle: list[Ereignis] = Field(default_factory=list)
     ampel: Ampel = Ampel.GRUEN
     issues: list[str] = Field(default_factory=list)

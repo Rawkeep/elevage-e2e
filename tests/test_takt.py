@@ -92,7 +92,7 @@ def test_widersprueche_der_blaetter_erreichen_das_tagesbild():
     text = " ".join(bild.issues)
     assert "GUMBORO" in text  # doppelte Zählung J12/J17
     assert "Tag 57-60" in text  # Zeile steht in Woche 7, datiert auf 57-60
-    assert "Verzehrkurve" in text  # ehrliche Lücke statt stiller Null
+    assert "Richtwerten" in text  # die Prognose sagt, worauf sie steht
 
 
 def test_mischauftrag_der_laufenden_phase_wird_gesperrt_wenn_noetig():

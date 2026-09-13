@@ -19,7 +19,7 @@ from contextlib import contextmanager
 from datetime import date
 from pathlib import Path
 
-from elevage.models import Herde, Quittung, Tierart
+from elevage.models import Ereignis, EreignisArt, Herde, Quittung, Tierart
 
 STANDARD_PFAD = Path(os.environ.get("ELEVAGE_DB", Path.home() / ".elevage" / "elevage.db"))
 
@@ -72,6 +72,22 @@ MIGRATIONEN: list[tuple[int, str]] = [
             issues_json  TEXT NOT NULL DEFAULT '[]',
             PRIMARY KEY (tenant_id, protokoll_id)
         );
+        """,
+    ),
+    (
+        3,
+        """
+        CREATE TABLE ereignis (
+            tenant_id       TEXT NOT NULL,
+            ereignis_id     TEXT NOT NULL,
+            herde_id        TEXT NOT NULL,
+            art             TEXT NOT NULL,
+            festgestellt_am TEXT NOT NULL,
+            bemerkung       TEXT,
+            PRIMARY KEY (tenant_id, ereignis_id)
+        );
+
+        CREATE INDEX ereignis_nach_herde ON ereignis (tenant_id, herde_id);
         """,
     ),
 ]
@@ -274,6 +290,58 @@ def protokolliere_mischung(
     )
     conn.commit()
     return cur.rowcount == 1
+
+
+# --- Vorfälle -----------------------------------------------------------
+
+
+def melde_ereignis(conn: sqlite3.Connection, ereignis: Ereignis) -> bool:
+    """Einen Vorfall festhalten. Wie die Quittung idempotent über die Id."""
+    cur = conn.execute(
+        "INSERT OR IGNORE INTO ereignis (tenant_id, ereignis_id, herde_id, art,"
+        " festgestellt_am, bemerkung) VALUES (?, ?, ?, ?, ?, ?)",
+        (
+            ereignis.tenant_id,
+            ereignis.ereignis_id,
+            ereignis.herde_id,
+            ereignis.art.value,
+            ereignis.festgestellt_am.isoformat(),
+            ereignis.bemerkung,
+        ),
+    )
+    conn.commit()
+    return cur.rowcount == 1
+
+
+def ereignisse_fuer(conn: sqlite3.Connection, tenant_id: str, herde_id: str) -> list[Ereignis]:
+    zeilen = conn.execute(
+        "SELECT * FROM ereignis WHERE tenant_id = ? AND herde_id = ?"
+        " ORDER BY festgestellt_am, ereignis_id",
+        (tenant_id, herde_id),
+    )
+    return [
+        Ereignis(
+            tenant_id=z["tenant_id"],
+            herde_id=z["herde_id"],
+            ereignis_id=z["ereignis_id"],
+            art=EreignisArt(z["art"]),
+            festgestellt_am=date.fromisoformat(z["festgestellt_am"]),
+            bemerkung=z["bemerkung"],
+        )
+        for z in zeilen
+    ]
+
+
+def mischungen_fuer(
+    conn: sqlite3.Connection, tenant_id: str, herde_id: str
+) -> list[tuple[date, float]]:
+    """(Datum, Ist-Einwaage) je protokollierter Mischung — Rohstoff der Verzehrkurve."""
+    zeilen = conn.execute(
+        "SELECT gemischt_am, ist_kg FROM mischprotokoll"
+        " WHERE tenant_id = ? AND herde_id = ? ORDER BY gemischt_am",
+        (tenant_id, herde_id),
+    )
+    return [(date.fromisoformat(z["gemischt_am"]), float(z["ist_kg"])) for z in zeilen]
 
 
 def tabellen(conn: sqlite3.Connection) -> list[str]:

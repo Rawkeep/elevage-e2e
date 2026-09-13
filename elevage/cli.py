@@ -8,10 +8,12 @@ import sys
 from datetime import date, datetime
 from pathlib import Path
 
-from elevage import archiv
+from elevage import archiv, betrieb
 from elevage.mischung import baue_mischauftrag
 from elevage.models import (
     Ampel,
+    Ereignis,
+    EreignisArt,
     Herde,
     Mischauftrag,
     Quittung,
@@ -72,6 +74,26 @@ def zeige_tagesbild(bild: Tagesbild) -> None:
                 if t.ampel is Ampel.ERLEDIGT and t.lot:
                     print(f"        Charge: {t.lot}")
 
+    f = bild.futter
+    if f and f.bedarf_je_tag_kg is not None:
+        herkunft = "gemessen" if f.quelle and f.quelle.value == "GEMESSEN" else "Richtwert"
+        print(
+            f"\nFUTTER · {f.gramm_je_tier_tag:.0f} g/Tier/Tag ({herkunft}) "
+            f"· {f.bedarf_je_tag_kg:.1f} kg/Tag "
+            f"· {f.bedarf_bis_horizont_kg:.0f} kg für {f.horizont_tage} Tage"
+        )
+        if f.vorrat_kg is not None and f.reicht_bis:
+            print(
+                f"  Vorrat {f.vorrat_kg:.0f} kg reicht bis {f.reicht_bis:%d.%m.} "
+                f"· bestellen ab {f.bestellen_ab:%d.%m.}"
+            )
+
+    if bild.vorfaelle:
+        print("\nVORFÄLLE")
+        for v in bild.vorfaelle:
+            zusatz = f" — {v.bemerkung}" if v.bemerkung else ""
+            print(f"  {v.festgestellt_am:%d.%m.%Y}  {v.art.value}{zusatz}")
+
     if bild.issues:
         print("\nBEFUNDE (gemeldet, nicht stillschweigend repariert)")
         for i in bild.issues:
@@ -121,6 +143,7 @@ def main(argv: list[str] | None = None) -> int:
     tb.add_argument("--herde", required=True)
     tb.add_argument("--stichtag", type=_datum, required=True)
     tb.add_argument("--mischen", type=float, help="Mischauftrag über N kg mitdrucken")
+    tb.add_argument("--vorrat", type=float, help="Futtervorrat in kg — ergibt die Reichweite")
     tb.add_argument("--normieren", action="store_true")
 
     qu = unter.add_parser("quittieren", help="Einen Schritt abhaken")
@@ -132,6 +155,26 @@ def main(argv: list[str] | None = None) -> int:
     qu.add_argument("--lot")
     qu.add_argument("--bemerkung")
     qu.add_argument("--id", help="Ereignis-Nummer (Vorgabe: aus Herde/Schritt/Datum)")
+
+    vo = unter.add_parser("vorfall", help="Einen Vorfall melden (löst das Schema aus)")
+    _bauplan(vo)
+    vo.add_argument("--herde", required=True)
+    vo.add_argument("--art", choices=[a.value for a in EreignisArt], default="GUMBORO")
+    vo.add_argument("--am", type=_datum, required=True)
+    vo.add_argument("--bemerkung")
+    vo.add_argument("--id", help="Vorgangsnummer (Vorgabe: aus Herde/Art/Datum)")
+
+    ge = unter.add_parser("gemischt", help="Eine Mischung protokollieren")
+    _bauplan(ge)
+    ge.add_argument("--herde", required=True)
+    ge.add_argument("--kg", type=float, required=True)
+    ge.add_argument("--am", type=_datum, required=True)
+    ge.add_argument("--normieren", action="store_true")
+    ge.add_argument("--nummer", help="Protokollnummer (Vorgabe: aus Herde/Datum)")
+
+    ku = unter.add_parser("verzehr", help="Die Verzehrkurve dieser Herde")
+    _bauplan(ku)
+    ku.add_argument("--herde", required=True)
 
     mi = unter.add_parser("mischung", help="Waage-Liste für ein Rezept")
     mi.add_argument("--rezept", choices=[r.key for r in REZEPTE], required=True)
@@ -202,12 +245,65 @@ def main(argv: list[str] | None = None) -> int:
             print("Quittiert." if neu else "Lag bereits vor — nichts geändert.")
             return 0
 
+        if a.befehl == "vorfall":
+            ereignis = Ereignis(
+                tenant_id=a.betrieb,
+                herde_id=a.herde,
+                ereignis_id=a.id or f"{a.herde}:{a.art}:{a.am.isoformat()}",
+                art=EreignisArt(a.art),
+                festgestellt_am=a.am,
+                bemerkung=a.bemerkung,
+            )
+            neu = archiv.melde_ereignis(conn, ereignis)
+            print(
+                f"Vorfall {ereignis.art.value} vom {ereignis.festgestellt_am} "
+                + (
+                    "aufgenommen — das Schema steht ab sofort im Tagesbild."
+                    if neu
+                    else "lag bereits vor — nichts geändert."
+                )
+            )
+            return 0
+
+        if a.befehl == "gemischt":
+            bild = betrieb.tagesbild(conn, a.betrieb, a.herde, a.am)
+            auftrag = mischauftrag_fuer(bild, a.kg, normieren=a.normieren)
+            if auftrag is None:
+                print("Kein Rezept für diese Linie — nichts zu protokollieren.")
+                return 1
+            zeige_mischauftrag(auftrag)
+            if not auftrag.freigegeben:
+                print("\nNicht protokolliert: der Auftrag ist gesperrt.")
+                return 2
+            archiv.protokolliere_mischung(
+                conn,
+                a.betrieb,
+                a.nummer or f"{a.herde}:{a.am.isoformat()}",
+                a.herde,
+                a.am,
+                auftrag,
+            )
+            print("\nProtokolliert — die Verzehrkurve rechnet das ab jetzt mit.")
+            return 0
+
+        if a.befehl == "verzehr":
+            kurve, issues = betrieb.verzehrkurve(conn, a.betrieb, a.herde)
+            print(f"Verzehrkurve {a.herde} ({kurve.tierart.value})")
+            for punkt in kurve.punkte:
+                marke = "gemessen " if punkt.quelle.value == "GEMESSEN" else "Richtwert"
+                print(
+                    f"  Woche {punkt.woche:3d}  {punkt.gramm_je_tier_tag:6.1f} g/Tier/Tag"
+                    f"  {marke}  {punkt.basis or ''}"
+                )
+            for i in issues:
+                print(f"  · {i}")
+            return 0
+
         gewaehlt = archiv.lade_herde(conn, a.betrieb, a.herde)
         if gewaehlt is None:
             print(f"Unbekannte Herde: {a.herde}")
             return 1
-        quittungen = archiv.quittungen_fuer(conn, a.betrieb, a.herde)
-        bild = rechne(gewaehlt, a.stichtag, quittungen)
+        bild = betrieb.tagesbild(conn, a.betrieb, a.herde, a.stichtag, vorrat_kg=a.vorrat)
         zeige_tagesbild(bild)
         if a.mischen:
             auftrag = mischauftrag_fuer(bild, a.mischen, normieren=a.normieren)

@@ -10,38 +10,48 @@ from __future__ import annotations
 from datetime import date
 
 from elevage.mischung import baue_mischauftrag
-from elevage.models import Ampel, Herde, Mischauftrag, Quittung, Tagesbild, Termin
+from elevage.models import (
+    Ampel,
+    Ereignis,
+    Herde,
+    Mischauftrag,
+    Quittung,
+    Tagesbild,
+    Termin,
+    Verzehrkurve,
+)
 from elevage.plan import (
     VORSCHAU_TAGE,
     alter_in_tagen,
     alter_in_wochen,
     baue_termine,
     offene_issues,
+    schritte_fuer,
 )
-from elevage.programme import programm
 from elevage.rezepte import KEIN_MASTFUTTER, PHASEN_UEBERLAPPUNG, rezept_fuer
-
-TAGESVERZEHR_UNBEKANNT = (
-    "Ohne Verzehrkurve (g/Tier/Tag je Alterswoche) kann der Taktgeber mischen, "
-    "aber keine Reichweite und keinen Bestellzeitpunkt vorhersagen."
-)
+from elevage.verzehr import prognose, richtwert
 
 
 def rechne(
     herde: Herde,
     stichtag: date,
     quittungen: list[Quittung] | None = None,
+    ereignisse: list[Ereignis] | None = None,
+    *,
+    kurve: Verzehrkurve | None = None,
+    vorrat_kg: float | None = None,
+    kurven_issues: list[str] | None = None,
 ) -> Tagesbild:
     alter = alter_in_tagen(herde, stichtag)
     wochen = alter_in_wochen(alter)
-    termine = baue_termine(herde, stichtag, quittungen)
+    termine = baue_termine(herde, stichtag, quittungen, ereignisse)
 
     ueberfaellig = [t for t in termine if t.ampel is Ampel.ROT]
     heute = [t for t in termine if t.ampel is Ampel.GELB]
     demnaechst = [t for t in termine if t.ampel is Ampel.GRUEN and 0 < t.tage_bis <= VORSCHAU_TAGE]
     erledigt = [t for t in termine if t.ampel is Ampel.ERLEDIGT]
 
-    vorlauf = {s.key: s.vorlauf_tage for s in programm(herde.tierart)}
+    vorlauf = {s.key: s.vorlauf_tage for s in schritte_fuer(herde, stichtag, ereignisse)}
     bestellen = [
         t
         for t in termine
@@ -50,7 +60,7 @@ def rechne(
         and 0 < t.tage_bis <= vorlauf.get(t.schritt_key, 3)
     ]
 
-    issues = offene_issues(herde)
+    issues = offene_issues(herde, stichtag, ereignisse)
     phase = rezept_fuer(herde.tierart, wochen)
     if phase is None:
         issues.append(
@@ -60,7 +70,23 @@ def rechne(
         )
     else:
         issues.append(PHASEN_UEBERLAPPUNG)
-    issues.append(TAGESVERZEHR_UNBEKANNT)
+
+    # Die Kurve entscheidet nichts — sie liefert eine Zahl mit Herkunft.
+    futter = prognose(
+        herde,
+        stichtag,
+        wochen,
+        kurve or richtwert(herde.tierart),
+        vorrat_kg=vorrat_kg,
+        zusatz_issues=kurven_issues,
+    )
+    issues.extend(futter.issues)
+
+    meine_vorfaelle = [
+        e
+        for e in (ereignisse or [])
+        if e.herde_id == herde.herde_id and e.tenant_id == herde.tenant_id
+    ]
 
     if ueberfaellig:
         ampel = Ampel.ROT
@@ -80,6 +106,8 @@ def rechne(
         demnaechst=demnaechst,
         bestellen=bestellen,
         erledigt=erledigt,
+        futter=futter,
+        vorfaelle=meine_vorfaelle,
         ampel=ampel,
         issues=issues,
     )

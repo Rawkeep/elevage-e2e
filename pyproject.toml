@@ -1,0 +1,31 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "elevage-e2e"
+version = "0.1.0"
+description = "Taktgeber für die Geflügelhaltung: Prophylaxe und Fütterung je Herde, deterministisch"
+requires-python = ">=3.10"
+dependencies = ["pydantic>=2"]
+
+[project.optional-dependencies]
+dev = ["pytest", "ruff", "mypy"]
+
+[project.scripts]
+elevage = "elevage.cli:main"
+
+[tool.setuptools]
+packages = ["elevage"]
+
+[tool.ruff]
+line-length = 100
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP", "B"]
+
+[tool.mypy]
+python_version = "3.10"
+files = ["elevage"]
+strict = true
+plugins = ["pydantic.mypy"]

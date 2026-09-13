@@ -459,3 +459,14 @@ def test_nach_dem_passwortwechsel_gilt_kein_altes_cookie(dienst):
     neu.oeffner = build_opener(HTTPCookieProcessor(CookieJar()))
     neu.sende("/api/anmelden", {"benutzer": "stall", "passwort": "einneuesgutes2026"})
     assert neu.hole("/api/ich")["benutzerId"] == "stall"
+
+
+def test_die_csp_erlaubt_das_eigene_zeichen_und_sonst_nichts(angemeldet):
+    """Ohne img-src blockte die eigene CSP das eigene Inline-Favicon —
+    gefunden hat das nur die Browser-Konsole."""
+    with angemeldet.roh("/") as antwort:
+        csp = antwort.headers["Content-Security-Policy"]
+    assert "img-src data:" in csp
+    assert "default-src 'none'" in csp
+    assert "worker-src 'self'" in csp
+    assert "http" not in csp  # keine fremde Quelle erlaubt

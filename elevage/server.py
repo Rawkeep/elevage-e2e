@@ -158,6 +158,10 @@ def baue_handler(db: Path | None) -> type[BaseHTTPRequestHandler]:
                 "Content-Security-Policy",
                 "default-src 'none'; style-src 'unsafe-inline'; "
                 "script-src 'self' 'unsafe-inline'; worker-src 'self'; "
+                # data: nur für Bilder — das Zeichen der Seite ist ein
+                # Inline-SVG. Ohne diese Zeile blockt die eigene CSP das
+                # eigene Favicon, und nur die Browser-Konsole sagt es.
+                "img-src data:; "
                 "connect-src 'self'; form-action 'none'; base-uri 'none'",
             )
             self.end_headers()

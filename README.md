@@ -55,6 +55,8 @@ ein Wächter-Job daran hängen, ohne die Ausgabe zu lesen.
 | `notfall.py` | Gumboro-Schema und Leberschutz beim Futterwechsel (NB-Kasten) |
 | `wartezeit.py` | Ab wann nach einer Behandlung wieder vermarktet werden darf |
 | `bestand.py` | Wie viele Tiere wirklich im Stall stehen |
+| `sprache.py` | Wörterbuch Deutsch/Französisch für die Oberfläche |
+| `version.py` | Ein Versionsstempel, gelesen statt zweimal geschrieben |
 | `verzehr.py` | Verzehrkurve: gemessen aus dem Mischprotokoll, sonst Richtwert |
 | `archiv.py` | SQLite (Stdlib): Herden, Quittungen, Mischprotokoll, Vorfälle |
 | `betrieb.py` | Die Naht: Archiv rein, Tagesbild raus |
@@ -299,6 +301,21 @@ SUMME             100.00 kg/100kg  (+0.00)
 Gumboro-Schema** eine Einstellung — Vorgabe bleibt der Wert des eigenen
 Blattes, und der Befund sagt, ob die Zahl vom Blatt oder vom Betrieb kommt.
 Unbekannte Einstellungsschlüssel werden abgewiesen, nicht abgelegt.
+
+## Zwei Sprachen
+
+Die Quellblätter sind französisch, die Leute im Stall vermutlich auch. Die
+Oberfläche lässt sich im Kopf umschalten (Deutsch / Français).
+
+Drei Entscheidungen:
+
+* **Nur die Oberfläche wird übersetzt, nicht die Daten.** Präparatnamen,
+  Rezeptposten und Befunde bleiben, wie sie sind — ein Befund, der in der
+  Übersetzung eine Nuance verliert, ist schlimmer als einer auf Deutsch.
+* **Fehlt eine Vokabel, steht der deutsche Text da** — kein leeres Feld,
+  kein Schlüsselname.
+* **Die Wahl lebt im Browser**, nicht in der Datenbank: die Sprache gehört
+  dem Menschen vor dem Gerät, nicht dem Konto.
 
 ## Betriebsalltag
 

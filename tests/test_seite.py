@@ -136,3 +136,25 @@ def test_nur_idempotente_wege_werden_nachgereicht():
     schlange = SEITE[SEITE.index("const NACHREICHBAR") : SEITE.index("function schlange")]
     assert "/api/mischung" not in schlange
     assert "/api/praeparat" not in schlange
+
+
+def test_die_kopfzeile_zeigt_den_echten_bestand_nicht_die_einstallzahl():
+    """Ein Fund der sehenden Abnahme: die Zahl war nie ausgetauscht worden."""
+    assert "bild.bestand" in SEITE
+    assert "stand ? stand.tierzahl : bild.herde.tierzahl" in SEITE
+    assert "verlusteProzent" in SEITE
+
+
+def test_die_uebersetzungsfunktion_heisst_nicht_t():
+    """`t` ist in diesem Skript überall der Termin. Ein verdeckter Name
+    ergibt zur Laufzeit einen Fehler, den kein Python-Test sieht."""
+    import re
+
+    assert "function txt(text)" in SEITE
+    code = [
+        zeile
+        for zeile in SEITE[SEITE.index("<script>") :].splitlines()
+        if not zeile.lstrip().startswith("//")  # Kommentare dürfen t() nennen
+    ]
+    uebrig = re.findall(r"(?<![A-Za-z0-9_.$])t\(", "\n".join(code))
+    assert not uebrig, f"{len(uebrig)} Aufruf(e) der alten Funktion übrig"

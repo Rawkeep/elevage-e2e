@@ -12,6 +12,8 @@ ein Zeichen und ein Wort.
 
 from __future__ import annotations
 
+from elevage.sprache import woerterbuch
+
 DIENER = """// Service Worker: die Seite muss auch ohne Netz aufgehen.
 //
 // Zwei getrennte Vorräte, weil sie Verschiedenes bedeuten: die SEITE ist
@@ -201,6 +203,11 @@ body:not([data-rolle="LEITUNG"]) #vermerke button { display: none; }
     </div>
     <div style="display:flex;gap:8px;align-items:center">
       <span class="leise" id="wer"></span>
+      <label for="sprache" style="margin:0">Sprache</label>
+      <select id="sprache" style="min-height:36px;padding:2px 8px">
+        <option value="de">Deutsch</option>
+        <option value="fr">Français</option>
+      </select>
       <button class="still" id="thema" type="button">Ansicht wechseln</button>
       <button class="still" id="abmelden" type="button">Abmelden</button>
     </div>
@@ -316,6 +323,37 @@ body:not([data-rolle="LEITUNG"]) #vermerke button { display: none; }
 
 <script>
 const $ = (id) => document.getElementById(id);
+
+// Nur die Oberfläche wird übersetzt, nicht die Daten: Präparatnamen,
+// Rezeptposten und Befunde bleiben, wie sie sind. Ein Befund, der in der
+// Übersetzung eine Nuance verliert, ist schlimmer als einer auf Deutsch.
+const WOERTER = WOERTERBUCH_HIER;
+let SPRACHE = "de";
+try { SPRACHE = localStorage.getItem("taktgeber-sprache") || "de"; } catch (f) {}
+
+function txt(text) {
+  // Heißt NICHT t(): so heißt in diesem Skript überall der Termin, und ein
+  // verdeckter Name ergibt zur Laufzeit "t is not a function".
+  const buch = WOERTER[SPRACHE];
+  return (buch && buch[text]) || text;   // fehlt eine Vokabel: deutscher Text
+}
+
+function uebersetzeSeite() {
+  if (SPRACHE === "de") return;
+  const lauf = document.createTreeWalker(document.body, NodeFilter.SHOW_TEXT);
+  const knoten = [];
+  while (lauf.nextNode()) knoten.push(lauf.currentNode);
+  knoten.forEach((k) => {
+    const roh = k.nodeValue.trim();
+    if (!roh) return;
+    const uebersetzt = txt(roh);
+    if (uebersetzt !== roh) k.nodeValue = k.nodeValue.replace(roh, uebersetzt);
+  });
+  document.querySelectorAll("[placeholder]").forEach((feld) => {
+    feld.placeholder = txt(feld.placeholder);
+  });
+  document.documentElement.lang = SPRACHE;
+}
 const heute = () => new Date().toISOString().slice(0, 10);
 let bild = null;
 let letzteQuittung = null;
@@ -324,7 +362,8 @@ function zeichen(ampel) {
   return { ROT: "!", GELB: "\\u203a", GRUEN: "\\u00b7", ERLEDIGT: "\\u2713" }[ampel] || "";
 }
 function wort(ampel) {
-  return { ROT: "überfällig", GELB: "jetzt dran", GRUEN: "geplant", ERLEDIGT: "erledigt" }[ampel];
+  return txt({ ROT: "überfällig", GELB: "jetzt dran",
+             GRUEN: "geplant", ERLEDIGT: "erledigt" }[ampel]);
 }
 function fenster(t) {
   const kurz = (s) => s.slice(8, 10) + "." + s.slice(5, 7) + ".";
@@ -452,7 +491,7 @@ function postenZeile(t, mitKnopf) {
     const knopf = document.createElement("button");
     knopf.className = "tat";
     knopf.type = "button";
-    knopf.textContent = "Erledigt";
+    knopf.textContent = txt("Erledigt");
     knopf.style.marginTop = "6px";
     knopf.onclick = () => (t.praeparate && t.praeparate.length > 1)
       ? frageMittel(li, t) : quittiere(t, null);
@@ -510,18 +549,25 @@ async function lade() {
     $("zustand").hidden = true;
   } catch (fehler) {
     $("zustand").hidden = false;
-    $("zustand").textContent = "Das hat nicht geklappt: " + fehler.message;
+    $("zustand").textContent = txt("Das hat nicht geklappt: ") + fehler.message;
   }
 }
 
 function zeige() {
   $("lage").textContent = zeichen(bild.ampel) + " " + wort(bild.ampel);
   $("lage").className = "lage " + bild.ampel;
+  const stand = bild.bestand;
+  const imStall = stand ? stand.tierzahl : bild.herde.tierzahl;
+  const verlust = stand && stand.abgangGesamt
+    ? " (" + txt("von") + " " + stand.eingestallt + ", \\u2212"
+      + stand.verlusteProzent + " %)"
+    : "";
   $("alter").textContent =
-    "Tag " + bild.alterTage + " \\u00b7 Woche " + bild.alterWochen + " \\u00b7 "
-    + bild.herde.tierzahl + " Tiere";
-  $("phase").textContent = bild.phase ? "Futterphase: " + bild.phase.name
-                                      : "Für diese Linie liegt kein Futterblatt vor.";
+    txt("Tag") + " " + bild.alterTage + " \\u00b7 " + txt("Woche") + " "
+    + bild.alterWochen + " \\u00b7 " + imStall + " " + txt("Tiere") + verlust;
+  $("phase").textContent = bild.phase
+    ? txt("Futterphase") + ": " + bild.phase.name
+    : txt("Für diese Linie liegt kein Futterblatt vor.");
   $("kopfzahlen").hidden = false;
 
   const laufend = (bild.sperren || []).filter((s) => s.laeuftNoch);
@@ -530,7 +576,7 @@ function zeige() {
   if (laufend.length) {
     const spaeteste = laufend.map((s) => s.freigabeAb).sort().pop();
     const was = laufend[0].erzeugnis === "EIER" ? "Eier" : "Fleisch";
-    $("sperrtext").textContent = was + " gesperrt bis " + spaeteste;
+    $("sperrtext").textContent = txt(was) + " " + txt("gesperrt bis") + " " + spaeteste;
     laufend.forEach((s) => {
       const li = document.createElement("li");
       li.className = "posten ROT";
@@ -543,14 +589,16 @@ function zeige() {
 
   const f = bild.futter;
   if (f && f.bedarfJeTagKg !== null) {
-    let text = f.grammJeTierTag + " g/Tier/Tag \\u00b7 " + f.bedarfJeTagKg + " kg am Tag \\u00b7 "
-             + f.bedarfBisHorizontKg + " kg für " + f.horizontTage + " Tage";
-    if (f.reichtBis) text += " \\u00b7 Vorrat reicht bis " + f.reichtBis
-                           + ", bestellen ab " + f.bestellenAb;
+    let text = f.grammJeTierTag + " " + txt("g/Tier/Tag") + " \\u00b7 "
+             + f.bedarfJeTagKg + " " + txt("kg am Tag") + " \\u00b7 "
+             + f.bedarfBisHorizontKg + " " + txt("kg für") + " "
+             + f.horizontTage + " " + txt("Tage");
+    if (f.reichtBis) text += " \\u00b7 " + txt("Vorrat reicht bis") + " " + f.reichtBis
+                           + ", " + txt("bestellen ab") + " " + f.bestellenAb;
     $("futtertext").textContent = text;
-    $("futterherkunft").textContent =
+    $("futterherkunft").textContent = txt(
       f.quelle === "GEMESSEN" ? "Aus dem eigenen Mischprotokoll gerechnet."
-                              : "Richtwert \\u2014 keine Zahl dieses Betriebs.";
+                              : "Richtwert \\u2014 keine Zahl dieses Betriebs.");
     $("futter").hidden = false;
   } else { $("futter").hidden = true; }
 
@@ -583,7 +631,7 @@ function zeige() {
     const knopf = document.createElement("button");
     knopf.className = "tat";
     knopf.type = "button";
-    knopf.textContent = "Geprüft";
+    knopf.textContent = txt("Geprüft");
     knopf.onclick = () => hakeAb(v);
     reihe.append(links, knopf);
     li.appendChild(reihe);
@@ -600,6 +648,7 @@ function zeige() {
     kasten.appendChild(p);
   });
   $("block-befunde").hidden = bild.issues.length === 0;
+  uebersetzeSeite();
 }
 
 function frageMittel(li, t) {
@@ -613,7 +662,7 @@ function frageMittel(li, t) {
   const beschriftung = document.createElement("label");
   const kennung = "mittel-" + t.schrittKey;
   beschriftung.setAttribute("for", kennung);
-  beschriftung.textContent = "Welches Mittel wurde gegeben?";
+  beschriftung.textContent = txt("Welches Mittel wurde gegeben?");
   const wahl = document.createElement("select");
   wahl.id = kennung;
   t.praeparate.forEach((name) => {
@@ -626,12 +675,12 @@ function frageMittel(li, t) {
   const ja = document.createElement("button");
   ja.className = "tat";
   ja.type = "button";
-  ja.textContent = "Abhaken";
+  ja.textContent = txt("Abhaken");
   ja.onclick = () => quittiere(t, wahl.value);
   const nein = document.createElement("button");
   nein.className = "still";
   nein.type = "button";
-  nein.textContent = "Abbrechen";
+  nein.textContent = txt("Abbrechen");
   nein.onclick = () => kasten.remove();
   kasten.append(feld, ja, nein);
   li.appendChild(kasten);
@@ -712,7 +761,7 @@ async function rechne(buchen) {
     });
     $("buchen").hidden = !a.auftrag.freigegeben || a.auftrag.ausgleich === "VERBATIM";
     if (buchen) melde(a.gebucht ? "Mischung protokolliert." : "Nicht gebucht.", false);
-  } catch (fehler) { ziel.textContent = "Das hat nicht geklappt: " + fehler.message; }
+  } catch (fehler) { ziel.textContent = txt("Das hat nicht geklappt: ") + fehler.message; }
 }
 
 $("rechnen").onclick = () => rechne(false);
@@ -754,6 +803,13 @@ $("abmelden").onclick = async () => {
   window.location.href = "/anmelden";
 };
 
+$("sprache").value = SPRACHE;
+$("sprache").onchange = () => {
+  SPRACHE = $("sprache").value;
+  try { localStorage.setItem("taktgeber-sprache", SPRACHE); } catch (f) {}
+  window.location.reload();   // einmal sauber neu aufbauen statt halb übersetzt
+};
+
 $("nachreichen").onclick = nachreichen;
 window.addEventListener("online", () => { zeigeBand(); nachreichen(); });
 window.addEventListener("offline", zeigeBand);
@@ -773,6 +829,7 @@ fetch("/api/health").then((a) => a.json()).then((h) => {
   $("stempel").textContent = "Version " + h.version + " \u00b7 " + h.commit;
 }).catch(() => {});
 
+uebersetzeSeite();
 zeigeBand();
 nachreichen();
 lade();
@@ -781,7 +838,7 @@ lade();
 </html>
 """
 
-SEITE = _ROH.replace("FAVICON_HIER", FAVICON)
+SEITE = _ROH.replace("FAVICON_HIER", FAVICON).replace("WOERTERBUCH_HIER", woerterbuch())
 
 ANMELDESEITE = """<!doctype html>
 <html lang="de">

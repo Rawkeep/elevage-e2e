@@ -13,7 +13,7 @@ dependencies = ["pydantic>=2"]
 dev = ["pytest", "ruff", "mypy"]
 
 [project.scripts]
-elevage = "elevage.cli:main"
+elevage = "elevage.cli:_starte"
 
 [tool.setuptools]
 packages = ["elevage"]

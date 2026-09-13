@@ -11,11 +11,21 @@ nichts.
 ## Was es kann
 
 ```bash
-python3 -m elevage.cli demo                       # drei Szenarien, ohne Eingaben
-python3 -m elevage.cli tagesbild --tierart LEGEHENNE \
-    --einstall 2026-03-02 --stichtag 2026-03-06 --tiere 1200 --mischen 500
+python3 -m elevage.cli demo                       # drei Szenarien, ohne Datenbank
+
+python3 -m elevage.cli einstallen --betrieb hof --herde H1 --name "Stall Nord" \
+    --tierart LEGEHENNE --einstall 2026-03-02 --tiere 1200
+python3 -m elevage.cli herden --betrieb hof
+python3 -m elevage.cli tagesbild --betrieb hof --herde H1 --stichtag 2026-03-06 --mischen 500
+python3 -m elevage.cli quittieren --betrieb hof --herde H1 \
+    --schritt PONDEUSE_J7_GUMBORO_1 --am 2026-03-08 --durch Kofi --lot LOT-4711
+python3 -m elevage.cli ausstallen --betrieb hof --herde H1   # Historie bleibt
+
 python3 -m elevage.cli mischung --rezept PONTE_AB_21 --kg 1000 [--normieren]
 ```
+
+Die Datenbank liegt unter `~/.elevage/elevage.db`; `--db` oder die
+Umgebungsvariable `ELEVAGE_DB` legen sie woandershin.
 
 `tagesbild` beendet sich mit Code 2, wenn etwas überfällig ist — damit kann
 ein Wächter-Job daran hängen, ohne die Ausgabe zu lesen.
@@ -30,6 +40,7 @@ ein Wächter-Job daran hängen, ohne die Ausgabe zu lesen.
 | `plan.py` | Vorlage + Herde = Termine mit echten Daten, Ampel, Quittungen |
 | `mischung.py` | Rezept × Chargengröße, mit Summenprobe und Sperre |
 | `takt.py` | `rechne(herde, stichtag)` — das ganze Tagesbild |
+| `archiv.py` | SQLite (Stdlib): Herden, Quittungen, Mischprotokoll, Migrationen |
 | `cli.py` | Dünne Schale, keine eigene Logik |
 
 Datenfluss: `Herde` + `Stichtag` → `plan.baue_termine()` → `takt.rechne()`
@@ -51,8 +62,14 @@ Datenfluss: `Herde` + `Stichtag` → `plan.baue_termine()` → `takt.rechne()`
 5. **Lücken werden benannt, nicht als Null verbucht.** Für Masthühner gibt
    es kein Futterblatt; ohne Verzehrkurve gibt es keine Reichweite.
 6. **Tenant-ID in jedem Datensatz**, Trennung schon im Kern — nicht erst in
-   der Query.
-7. **Tuning steht als Konstante am Modulanfang**, keine Magic Numbers.
+   der Query. `test_jede_fachtabelle_hat_eine_tenant_id` bewacht das als
+   Fitness-Function: eine neue Tabelle ohne Mandanten fällt sofort auf.
+7. **Ausstallen löscht nicht**, es setzt inaktiv — die Historie bleibt.
+8. **Ein gesperrter Mischauftrag wird nicht protokolliert.** Was nicht
+   freigegeben ist, wurde nicht gemischt.
+9. **Tuning steht als Konstante am Modulanfang**, keine Magic Numbers.
+10. **Migrationen sind nummeriert** und laufen vorwärts gegen eine
+    Versionstabelle — kein ad-hoc `ALTER` im Code.
 
 ## Befunde aus den Quellblättern
 

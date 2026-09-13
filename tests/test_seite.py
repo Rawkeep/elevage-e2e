@@ -110,3 +110,29 @@ def test_abgaenge_lassen_sich_buchen():
     assert "Abgang buchen" in SEITE
     assert "/api/abgang" in SEITE
     assert "Verkauft ist kein Verlust" in SEITE
+
+
+def test_die_seite_ueberlebt_ein_funkloch():
+    """Offline war Qualitätsattribut Nr. 1 im Briefing."""
+    from elevage.seite import DIENER
+
+    assert 'navigator.serviceWorker.register("/sw.js")' in SEITE
+    assert "SEITE_VORRAT" in DIENER and "DATEN_VORRAT" in DIENER
+    # Seite aus dem Vorrat, Daten aus dem Netz: sonst arbeitet jemand mit gestern
+    assert "caches.match(anfrage).then((alt) => alt || fetch(anfrage)" in DIENER
+    assert "fetch(anfrage).then((antwort)" in DIENER
+
+
+def test_eingaben_gehen_im_funkloch_nicht_verloren():
+    assert "taktgeber-warteschlange" in SEITE
+    assert "function sendeOderMerken" in SEITE or "async function sendeOderMerken" in SEITE
+    assert "wird nachgereicht" in SEITE
+    for pfad in ("/api/quittung", "/api/abgang", "/api/vorfall"):
+        assert f'"{pfad}"' in SEITE
+
+
+def test_nur_idempotente_wege_werden_nachgereicht():
+    """Ein Mischauftrag braucht eine Antwort — den darf man nicht merken."""
+    schlange = SEITE[SEITE.index("const NACHREICHBAR") : SEITE.index("function schlange")]
+    assert "/api/mischung" not in schlange
+    assert "/api/praeparat" not in schlange

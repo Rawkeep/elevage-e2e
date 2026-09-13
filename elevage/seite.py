@@ -12,6 +12,68 @@ ein Zeichen und ein Wort.
 
 from __future__ import annotations
 
+DIENER = """// Service Worker: die Seite muss auch ohne Netz aufgehen.
+//
+// Zwei getrennte Vorräte, weil sie Verschiedenes bedeuten: die SEITE ist
+// unveränderlich (cache first, sonst wäre der Stall bei jedem Funkloch
+// weiß), die DATEN sind es nicht (network first, damit niemand mit einem
+// Tagesbild von gestern arbeitet, wenn ein frisches erreichbar ist).
+const SEITE_VORRAT = "taktgeber-seite-v1";
+const DATEN_VORRAT = "taktgeber-daten-v1";
+const SEITENPFADE = ["/", "/anmelden"];
+
+self.addEventListener("install", (ereignis) => {
+  ereignis.waitUntil(
+    caches.open(SEITE_VORRAT).then((vorrat) => vorrat.addAll(SEITENPFADE))
+      .then(() => self.skipWaiting())
+  );
+});
+
+self.addEventListener("activate", (ereignis) => {
+  ereignis.waitUntil(
+    caches.keys()
+      .then((namen) => Promise.all(namen
+        .filter((n) => n !== SEITE_VORRAT && n !== DATEN_VORRAT)
+        .map((n) => caches.delete(n))))
+      .then(() => self.clients.claim())
+  );
+});
+
+self.addEventListener("fetch", (ereignis) => {
+  const anfrage = ereignis.request;
+  if (anfrage.method !== "GET") return;  // Schreiben regelt die Warteschlange
+  const pfad = new URL(anfrage.url).pathname;
+
+  if (pfad.startsWith("/api/")) {
+    ereignis.respondWith(
+      fetch(anfrage).then((antwort) => {
+        if (antwort.ok) {
+          const kopie = antwort.clone();
+          caches.open(DATEN_VORRAT).then((v) => v.put(anfrage, kopie));
+        }
+        return antwort;
+      }).catch(() => caches.match(anfrage).then((alt) => alt || new Response(
+        JSON.stringify({ fehler: "Kein Netz und nichts im Zwischenspeicher." }),
+        { status: 503, headers: { "content-type": "application/json" } }
+      )))
+    );
+    return;
+  }
+
+  ereignis.respondWith(
+    caches.match(anfrage).then((alt) => alt || fetch(anfrage).then((antwort) => {
+      if (antwort.ok && SEITENPFADE.includes(pfad)) {
+        const kopie = antwort.clone();
+        caches.open(SEITE_VORRAT).then((v) => v.put(anfrage, kopie));
+      }
+      return antwort;
+    }))
+  );
+});
+"""
+"""Der Service Worker als String — wie die Seite, kein Build, keine Datei."""
+
+
 FAVICON = (
     "data:image/svg+xml,"
     "%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E"
@@ -123,6 +185,13 @@ body:not([data-rolle="LEITUNG"]) #vermerke button { display: none; }
 </head>
 <body>
 <div class="huelle">
+
+<p class="karte" id="offlineband" role="status" hidden
+   style="border-color:var(--ocker);background:var(--gelb-feld);font-weight:650">
+  <span id="offlinetext"></span>
+  <button class="still" id="nachreichen" type="button"
+          style="margin-left:10px;min-height:36px">Jetzt nachreichen</button>
+</p>
 
 <header class="karte">
   <div class="reihe">
@@ -257,6 +326,72 @@ function fenster(t) {
   const kurz = (s) => s.slice(8, 10) + "." + s.slice(5, 7) + ".";
   return t.faelligVon === t.faelligBis ? kurz(t.faelligVon)
        : kurz(t.faelligVon) + "\\u2013" + kurz(t.faelligBis);
+}
+
+const SCHLANGE_SCHLUESSEL = "taktgeber-warteschlange";
+
+// Nur Schreibpfade, deren Nummer aus dem Inhalt entsteht — sie dürfen
+// beliebig oft nachgereicht werden, ohne doppelt zu wirken.
+const NACHREICHBAR = [
+  "/api/quittung", "/api/quittung/widerrufen", "/api/vorfall",
+  "/api/abgang", "/api/vermerk/abhaken",
+];
+
+function schlange() {
+  try { return JSON.parse(localStorage.getItem(SCHLANGE_SCHLUESSEL) || "[]"); }
+  catch (fehler) { return []; }
+}
+
+function setzeSchlange(eintraege) {
+  try { localStorage.setItem(SCHLANGE_SCHLUESSEL, JSON.stringify(eintraege)); }
+  catch (fehler) { /* privates Fenster: dann eben nur diese Sitzung */ }
+  zeigeBand();
+}
+
+function zeigeBand() {
+  const offen = schlange();
+  const band = $("offlineband");
+  if (!offen.length && navigator.onLine) { band.hidden = true; return; }
+  $("offlinetext").textContent = !navigator.onLine
+    ? (offen.length ? "Kein Netz \u00b7 " + offen.length + " Eingabe(n) warten"
+                    : "Kein Netz \u2014 die Seite arbeitet aus dem Zwischenspeicher.")
+    : offen.length + " Eingabe(n) noch nicht beim Server";
+  $("nachreichen").hidden = !offen.length || !navigator.onLine;
+  band.hidden = false;
+}
+
+async function nachreichen() {
+  let offen = schlange();
+  while (offen.length) {
+    const eintrag = offen[0];
+    try {
+      const antwort = await fetch(eintrag.pfad, {
+        method: "POST", headers: { "content-type": "application/json" },
+        body: JSON.stringify(eintrag.koerper),
+      });
+      if (!antwort.ok && antwort.status >= 500) break;  // Server schwächelt: später
+    } catch (fehler) { break; }                          // immer noch kein Netz
+    offen = offen.slice(1);
+    setzeSchlange(offen);
+  }
+  if (!schlange().length) await lade();
+}
+
+async function sendeOderMerken(pfad, koerper) {
+  // Geht der Versand nicht durch, wandert die Eingabe in die
+  // Warteschlange statt verloren zu gehen. Möglich ist das nur, weil die
+  // Nummern serverseitig aus dem Inhalt entstehen: zweimal geschickt
+  // wirkt einmal.
+  try {
+    return await hole(pfad, {
+      method: "POST", headers: { "content-type": "application/json" },
+      body: JSON.stringify(koerper),
+    });
+  } catch (fehler) {
+    if (!NACHREICHBAR.includes(pfad) || fehler.message === "abgemeldet") throw fehler;
+    setzeSchlange(schlange().concat([{ pfad: pfad, koerper: koerper }]));
+    return { gemerkt: true };
+  }
 }
 
 async function hole(pfad, optionen) {
@@ -501,14 +636,14 @@ function frageMittel(li, t) {
 
 async function quittiere(t, mittel) {
   try {
-    const antwort = await hole("/api/quittung", {
-      method: "POST",
-      headers: { "content-type": "application/json" },
-      body: JSON.stringify({
-        herde: $("herde").value, schritt: t.schrittKey,
-        am: $("stichtag").value, praeparat: mittel,
-      }),
+    const antwort = await sendeOderMerken("/api/quittung", {
+      herde: $("herde").value, schritt: t.schrittKey,
+      am: $("stichtag").value, praeparat: mittel,
     });
+    if (antwort.gemerkt) {
+      melde("\\u201e" + t.titel + "\\u201c abgehakt \\u2014 wird nachgereicht.", false);
+      return;
+    }
     letzteQuittung = antwort.quittungId;
     melde("\\u201e" + t.titel + "\\u201c abgehakt.", true);
     await lade();
@@ -528,9 +663,8 @@ $("undo").onclick = async () => {
 
 async function hakeAb(v) {
   try {
-    await hole("/api/vermerk/abhaken", {
-      method: "POST", headers: { "content-type": "application/json" },
-      body: JSON.stringify({ vermerkId: v.vermerkId, am: $("stichtag").value }),
+    await sendeOderMerken("/api/vermerk/abhaken", {
+      vermerkId: v.vermerkId, am: $("stichtag").value,
     });
     melde("Als geprüft abgehakt.", false);
     await lade();
@@ -582,12 +716,9 @@ $("buchen").onclick = () => rechne(true).then(lade);
 
 $("melden").onclick = async () => {
   try {
-    await hole("/api/vorfall", {
-      method: "POST", headers: { "content-type": "application/json" },
-      body: JSON.stringify({
-        herde: $("herde").value, art: $("vorfallart").value,
-        am: $("vorfalltag").value, bemerkung: $("vorfalltext").value || null,
-      }),
+    await sendeOderMerken("/api/vorfall", {
+      herde: $("herde").value, art: $("vorfallart").value,
+      am: $("vorfalltag").value, bemerkung: $("vorfalltext").value || null,
     });
     melde("Vorfall aufgenommen \\u2014 das Schema steht im Plan.", false);
     $("vorfalltext").value = "";
@@ -599,12 +730,9 @@ $("buchen-abgang").onclick = async () => {
   const tiere = Number($("abgangtiere").value);
   if (!tiere) { melde("Wie viele Tiere?", false); return; }
   try {
-    await hole("/api/abgang", {
-      method: "POST", headers: { "content-type": "application/json" },
-      body: JSON.stringify({
-        herde: $("herde").value, tiere: tiere,
-        grund: $("abgangGrund").value, am: $("abgangTag").value,
-      }),
+    await sendeOderMerken("/api/abgang", {
+      herde: $("herde").value, tiere: tiere,
+      grund: $("abgangGrund").value, am: $("abgangTag").value,
     });
     $("abgangtiere").value = "";
     melde("Gebucht \u2014 der Futterbedarf rechnet ab jetzt damit.", false);
@@ -622,11 +750,23 @@ $("abmelden").onclick = async () => {
   window.location.href = "/anmelden";
 };
 
+$("nachreichen").onclick = nachreichen;
+window.addEventListener("online", () => { zeigeBand(); nachreichen(); });
+window.addEventListener("offline", zeigeBand);
+
+if ("serviceWorker" in navigator) {
+  // Ohne ihn ist die Seite im Funkloch weiß. Scheitert die Anmeldung
+  // (privates Fenster, kein TLS), läuft alles wie bisher weiter.
+  navigator.serviceWorker.register("/sw.js").catch(() => {});
+}
+
 $("laden").onclick = lade;
 $("herde").onchange = lade;
 $("stichtag").value = heute();
 $("vorfalltag").value = heute();
 $("abgangTag").value = heute();
+zeigeBand();
+nachreichen();
 lade();
 </script>
 </body>

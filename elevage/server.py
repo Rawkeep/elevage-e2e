@@ -49,7 +49,7 @@ from elevage.models import (
     Rolle,
     Sitzung,
 )
-from elevage.seite import ANMELDESEITE, ERSTER_BENUTZER, SEITE
+from elevage.seite import ANMELDESEITE, DIENER, ERSTER_BENUTZER, SEITE
 from elevage.wartezeit import praeparat_id
 
 STANDARD_PORT = 8791
@@ -138,7 +138,8 @@ def baue_handler(db: Path | None) -> type[BaseHTTPRequestHandler]:
             self.send_header("Referrer-Policy", "no-referrer")
             self.send_header(
                 "Content-Security-Policy",
-                "default-src 'none'; style-src 'unsafe-inline'; script-src 'unsafe-inline'; "
+                "default-src 'none'; style-src 'unsafe-inline'; "
+                "script-src 'self' 'unsafe-inline'; worker-src 'self'; "
                 "connect-src 'self'; form-action 'none'; base-uri 'none'",
             )
             self.end_headers()
@@ -222,7 +223,10 @@ def baue_handler(db: Path | None) -> type[BaseHTTPRequestHandler]:
                 if leer:
                     self._sende(200, ERSTER_BENUTZER.encode(), "text/html; charset=utf-8")
                     return
-                if teile.path == "/anmelden":
+                if teile.path == "/sw.js":
+                    # Muss von der Wurzel kommen, sonst darf er nur /sw/ steuern.
+                    self._sende(200, DIENER.encode(), "text/javascript; charset=utf-8")
+                elif teile.path == "/anmelden":
                     self._sende(200, ANMELDESEITE.encode(), "text/html; charset=utf-8")
                 elif teile.path in ("/", "/index.html"):
                     try:

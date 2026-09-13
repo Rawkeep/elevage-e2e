@@ -21,13 +21,16 @@ from elevage.models import (
     Mischauftrag,
     Pruefvermerk,
     Rezept,
+    Rezeptanpassung,
     Tagesbild,
     Verzehrkurve,
 )
+from elevage.rezepte import rezept_nach_key
 from elevage.takt import rechne
 from elevage.verzehr import aus_mischungen, kombiniere, richtwert
 
 VERMERK_AUSGLEICH = "ausgleich"
+VERMERK_ANPASSUNG = "anpassung"
 """Vermerk-Nummern sind sprechend und stabil, damit derselbe Punkt nur einmal liegt."""
 
 
@@ -116,6 +119,37 @@ def _lege_ausgleichsvermerk_an(
             betrifft=f"Rezept {rezept.key}",
             text=vermerk_text(rezept, auftrag.ausgleich_posten, alt, neu),
             angelegt_am=am,
+        ),
+    )
+
+
+def passe_rezept_an(
+    conn: sqlite3.Connection,
+    tenant_id: str,
+    anpassung: Rezeptanpassung,
+) -> None:
+    """Eine Handänderung am Rezept — mit Vermerk, wie der Ausgleich auch.
+
+    Vorher war das inkonsequent: der rechnerische Ausgleich hinterließ eine
+    Spur, die bewusste Änderung nicht. Gerade die gehört gegengelesen.
+    """
+    basis = rezept_nach_key(anpassung.rezept_key)
+    vorher = next((p.kg_je_100 for p in basis.posten if p.artikel_id == anpassung.artikel_id), None)
+    archiv.setze_anpassung(conn, anpassung)
+    war = f"{vorher:.2f}" if vorher is not None else "nicht im Blatt"
+    archiv.lege_vermerk_an(
+        conn,
+        Pruefvermerk(
+            tenant_id=tenant_id,
+            vermerk_id=f"{VERMERK_ANPASSUNG}:{anpassung.rezept_key}:{anpassung.artikel_id}",
+            betrifft=f"Rezept {anpassung.rezept_key}",
+            text=(
+                f"{anpassung.artikel_id} steht in „{basis.name}“ jetzt auf "
+                f"{anpassung.kg_je_100:.2f} kg je 100 kg (Blatt: {war}). "
+                + (f"Grund: {anpassung.grund}. " if anpassung.grund else "")
+                + "Bitte gegenlesen."
+            ),
+            angelegt_am=anpassung.geaendert_am,
         ),
     )
 

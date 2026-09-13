@@ -279,6 +279,7 @@ def main(argv: list[str] | None = None) -> int:
     bu.add_argument("--name", help="Klarname der Person")
     bu.add_argument("--rolle", choices=[r.value for r in Rolle], default=Rolle.STALL.value)
     bu.add_argument("--sperren", metavar="ANMELDENAME")
+    bu.add_argument("--passwort", metavar="ANMELDENAME", help="Passwort neu setzen")
     bu.add_argument("--am", type=_datum, help="Anlagedatum (Vorgabe: heute)")
 
     ui = unter.add_parser("ui", help="Lokale Oberfläche starten")
@@ -403,6 +404,23 @@ def main(argv: list[str] | None = None) -> int:
             return 0
 
         if a.befehl == "benutzer":
+            if a.passwort:
+                vorhanden = archiv.benutzer_mit_hash(conn, a.passwort)
+                if vorhanden is None or vorhanden[0].tenant_id != a.betrieb:
+                    print(f"Unbekannt: {a.passwort}")
+                    return 1
+                neues_passwort = getpass("Neues Passwort: ")
+                if neues_passwort != getpass("Wiederholen: "):
+                    print("Die Eingaben stimmen nicht überein.")
+                    return 1
+                try:
+                    archiv.setze_passwort(conn, a.passwort, hashe_passwort(neues_passwort))
+                except PasswortZuKurz as fehler:
+                    print(str(fehler))
+                    return 1
+                print("Gesetzt. Alle offenen Sitzungen dieses Kontos gelten nicht mehr.")
+                return 0
+
             if a.anlegen or a.sperren:
                 anmeldename = a.anlegen or a.sperren
                 vorhanden = archiv.benutzer_mit_hash(conn, anmeldename)
@@ -413,6 +431,7 @@ def main(argv: list[str] | None = None) -> int:
                     archiv.lege_benutzer_an(
                         conn, vorhanden[0].model_copy(update={"aktiv": False}), vorhanden[1]
                     )
+                    archiv.schliesse_alle_sitzungen(conn, anmeldename)
                     print(f"{anmeldename} gesperrt. Offene Sitzungen gelten nicht mehr.")
                 else:
                     if not a.name:
@@ -465,8 +484,9 @@ def main(argv: list[str] | None = None) -> int:
                     if a.am is None:
                         print("--am fehlt: eine Änderung ohne Datum ist nicht prüfbar.")
                         return 1
-                    archiv.setze_anpassung(
+                    betrieb.passe_rezept_an(
                         conn,
+                        a.betrieb,
                         Rezeptanpassung(
                             tenant_id=a.betrieb,
                             rezept_key=a.rezept,

@@ -53,6 +53,8 @@ ein Wächter-Job daran hängen, ohne die Ausgabe zu lesen.
 | `mischung.py` | Rezept × Chargengröße, mit Summenprobe und Sperre |
 | `takt.py` | `rechne(herde, stichtag)` — das ganze Tagesbild |
 | `notfall.py` | Gumboro-Schema und Leberschutz beim Futterwechsel (NB-Kasten) |
+| `wartezeit.py` | Ab wann nach einer Behandlung wieder vermarktet werden darf |
+| `bestand.py` | Wie viele Tiere wirklich im Stall stehen |
 | `verzehr.py` | Verzehrkurve: gemessen aus dem Mischprotokoll, sonst Richtwert |
 | `archiv.py` | SQLite (Stdlib): Herden, Quittungen, Mischprotokoll, Vorfälle |
 | `betrieb.py` | Die Naht: Archiv rein, Tagesbild raus |
@@ -199,6 +201,67 @@ fly deploy
 fly ssh console -C "python -m elevage.cli benutzer --betrieb hof --anlegen kofi --name 'Kofi A.' --rolle LEITUNG"
 ```
 
+## Wartezeiten — die Zahl steht auf der Packung
+
+Das Junghennen-Blatt verordnet in der Legeperiode monatlich Entwurmung.
+Während der Behandlung und für die Wartezeit danach dürfen die Eier nicht
+in den Verkauf. Es gibt hier **keine eingebaute Wartezeitentabelle** — sie
+hängt an Präparat, Dosis und Zulassungsland; eine erfundene Zahl wäre
+schlimmer als keine.
+
+```bash
+elevage praeparat --betrieb hof --anlegen "TETRACOLIVIT" --eier 7 --quelle Beipackzettel
+elevage quittieren --betrieb hof --herde H1 --schritt PONDEUSE_J23_ANTIBIOTIKUM \
+    --am 2026-03-25 --praeparat TETRACOLIVIT
+```
+
+```
+WARTEZEIT — Eier gesperrt bis 05.04.2026
+  TETRACOLIVIT · letzte Gabe 29.03. · 7 Tage · frei ab 05.04.
+```
+
+Drei Regeln, die nicht verhandelbar sind:
+
+1. **Unbekannt ist nicht null.** Ein Mittel ohne hinterlegte Wartezeit
+   erzeugt einen Befund, keine Freigabe.
+2. **Ohne festgehaltenes Präparat gibt es keine Rechnung.** Die Programme
+   nennen je Schritt mehrere Alternativen; die Oberfläche fragt beim
+   Abhaken, welche gegeben wurde.
+3. **Die Frist läuft ab der letzten Gabe**, nicht ab dem Abhaken — bei
+   einem mehrtägigen Schritt zählt das Ende des Behandlungsfensters.
+
+Legehennen fragen nach Eier-, Masthühner nach Fleischwartezeit. Eine
+Wartezeit einzutragen ist der Leitung vorbehalten.
+
+## Verluste — die Tierzahl ist ein Anfangswert
+
+Ohne Abgänge rechnet die Verzehrkurve dieselbe Futtermenge auf zu viele
+Tiere; der Fehler wächst mit der Zeit und fällt nie auf. 140 kg auf 1000
+statt auf die real verbliebenen 800 Tiere sind 20 statt 25 g/Tier/Tag.
+
+```bash
+elevage abgang --betrieb hof --herde H1 --tiere 12 --am 2026-03-18 --grund VERENDET
+```
+
+**Verkauft ist kein Verlust** — nur `VERENDET` und `GEKEULT` gehen in die
+Quote, sonst sähe jeder Verkauf aus wie ein Ausbruch. Ab 5 % seit dem
+Einstallen gibt es einen Befund, und eine **Häufung** (2 % in 7 Tagen)
+wird getrennt gemeldet: dieselbe Zahl über Monate ist etwas anderes.
+
+## Offline
+
+Die Seite läuft im Funkloch weiter. Ein Service Worker (`seite.DIENER`,
+ausgeliefert unter `/sw.js`) hält **zwei** Vorräte, weil sie Verschiedenes
+bedeuten: die **Seite** cache-first (sonst ist der Stall bei jedem Funkloch
+weiß), die **Daten** network-first (sonst arbeitet jemand mit dem
+Tagesbild von gestern, obwohl ein frisches erreichbar wäre).
+
+Geht ein Abhaken nicht durch, wandert es in eine Warteschlange im Browser
+und wird bei Netzrückkehr nachgereicht. Möglich ist das nur, weil die
+Nummern serverseitig aus dem Inhalt entstehen: **zweimal geschickt wirkt
+einmal.** Ein Mischauftrag steht bewusst nicht auf der Liste — der braucht
+eine Antwort.
+
 ## Wenn ein Rezept nicht auf 100 kg aufgeht
 
 Drei Wege, und die Ausgabe sagt immer, welcher gegangen wurde:
@@ -236,6 +299,31 @@ SUMME             100.00 kg/100kg  (+0.00)
 Gumboro-Schema** eine Einstellung — Vorgabe bleibt der Wert des eigenen
 Blattes, und der Befund sagt, ob die Zahl vom Blatt oder vom Betrieb kommt.
 Unbekannte Einstellungsschlüssel werden abgewiesen, nicht abgelegt.
+
+## Betriebsalltag
+
+```bash
+elevage benutzer --betrieb hof --passwort kofi   # Passwort neu setzen
+tools/backup-probe.sh                            # Sicherung + Rückspielprobe
+curl -s localhost:8791/api/health                # für den Uptime-Wächter
+```
+
+`/api/health` braucht keine Anmeldung (ein Wächter hat keine) und verrät
+keine Betriebszahl — nur `status`, `version`, `commit`. Geprüft wird die
+Datenbank mit, nicht nur der Prozess. Der Versionsstempel steht auch im
+Fuß der Seite: *welcher Stand lief, als es passierte?*
+
+Ein **Passwortwechsel beendet alle offenen Sitzungen** dieses Kontos. Wer
+sein Passwort ändert, tut das oft, weil er vermutet, dass es jemand kennt.
+
+`tools/backup-probe.sh` legt eine Sicherung an, **spielt sie in eine
+Wegwerf-Datei zurück** und prüft sie dort. Ein Backup, das nie
+zurückgespielt wurde, ist nur eine Hoffnung.
+
+**Zeitzone:** `date.today()` liest die Uhr des Servers. Läuft der in UTC
+und der Betrieb in Europa, ist abends ab 22 Uhr schon der Folgetag.
+`ELEVAGE_ZEITZONE=Europe/Berlin` stellt den Betriebstag gerade; Togo liegt
+auf UTC und braucht nichts.
 
 ## Regeln, die nicht gebrochen werden
 
@@ -288,3 +376,8 @@ handschriftliche Betriebsblätter.
 ```bash
 python3 -m ruff format . && python3 -m ruff check . && python3 -m mypy && python3 -m pytest -q
 ```
+
+Dieselben vier laufen in CI auf jeden Push und Pull Request, gegen Python
+3.10 und 3.12 (`.github/workflows/tests.yml`). Ein zweiter Job baut das
+Docker-Bild und prüft, ob `/api/health` darin antwortet — ein Dockerfile,
+das nie gebaut wurde, ist eine Behauptung.

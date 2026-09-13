@@ -412,3 +412,50 @@ def test_ein_leser_bucht_keine_abgaenge(dienst):
             "/api/abgang", {"herde": "H1", "tiere": 5, "am": "2026-03-05"}
         )
     assert fehler.value.code == 403
+
+
+# --- Gesundheit, Passwort, Zeitzone -------------------------------------
+
+
+def test_health_braucht_keine_anmeldung_und_verraet_nichts(dienst):
+    """Ein Wächter hat kein Cookie — und soll keine Betriebszahlen sehen."""
+    with urlopen(dienst + "/api/health", timeout=10) as antwort:
+        stand = json.loads(antwort.read())
+    assert stand["status"] == "ok"
+    assert set(stand) == {"status", "version", "commit"}
+
+
+def test_die_seite_zeigt_den_versionsstempel(angemeldet):
+    with angemeldet.roh("/") as antwort:
+        assert 'id="stempel"' in antwort.read().decode()
+
+
+def test_passwort_aendern_verlangt_das_alte(dienst):
+    sitzung = Sitzung(dienst, "stall")
+    with pytest.raises(HTTPError) as fehler:
+        sitzung.sende("/api/passwort", {"alt": "falschfalsch", "neu": "neuespasswort2026"})
+    assert fehler.value.code == 401
+
+
+def test_ein_zu_kurzes_passwort_wird_abgewiesen(dienst):
+    with pytest.raises(HTTPError) as fehler:
+        Sitzung(dienst, "stall").sende("/api/passwort", {"alt": PASSWORT, "neu": "kurz"})
+    assert fehler.value.code == 400
+
+
+def test_nach_dem_passwortwechsel_gilt_kein_altes_cookie(dienst):
+    """Wer sein Passwort ändert, vermutet oft, dass es jemand kennt."""
+    alte = Sitzung(dienst, "stall")
+    zweite = Sitzung(dienst, "stall")
+    alte.sende("/api/passwort", {"alt": PASSWORT, "neu": "einneuesgutes2026"})
+
+    for sitzung in (alte, zweite):
+        with pytest.raises(HTTPError) as fehler:
+            sitzung.hole("/api/ich")
+        assert fehler.value.code == 401
+
+    neu = Sitzung.__new__(Sitzung)
+    neu.basis = dienst
+    neu.oeffner = build_opener(HTTPCookieProcessor(CookieJar()))
+    neu.sende("/api/anmelden", {"benutzer": "stall", "passwort": "einneuesgutes2026"})
+    assert neu.hole("/api/ich")["benutzerId"] == "stall"

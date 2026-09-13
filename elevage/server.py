@@ -21,17 +21,20 @@ from __future__ import annotations
 
 import json
 import os
+import sqlite3
 import time
-from datetime import date, datetime
+from datetime import date, datetime, timezone
 from http.cookies import SimpleCookie
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from typing import Any
 from urllib.parse import parse_qs, urlparse
+from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
 from elevage import archiv, betrieb
 from elevage.anmeldung import (
     SITZUNG_TAGE,
+    PasswortZuKurz,
     hashe_passwort,
     laeuft_ab,
     neues_token,
@@ -50,6 +53,7 @@ from elevage.models import (
     Sitzung,
 )
 from elevage.seite import ANMELDESEITE, DIENER, ERSTER_BENUTZER, SEITE
+from elevage.version import stempel
 from elevage.wartezeit import praeparat_id
 
 STANDARD_PORT = 8791
@@ -113,9 +117,23 @@ LEER_HASH = hashe_passwort("x" * 24)
 """Vergleichswert für unbekannte Konten — damit die Antwortzeit nichts verrät."""
 
 
+ZEITZONE = os.environ.get("ELEVAGE_ZEITZONE", "UTC")
+"""Welcher Tag gemeint ist, wenn jemand „heute" sagt.
+
+`date.today()` liest die Uhr des Servers. Läuft der in UTC und der Betrieb
+in Europa, ist abends ab 22 Uhr schon der Folgetag — und eine Quittung
+landet auf dem falschen Datum. Togo liegt auf UTC, für andere Orte setzt
+`ELEVAGE_ZEITZONE` (z. B. Europe/Berlin) den Betriebstag gerade."""
+
+
 def heute() -> date:
-    """Die einzige Stelle, an der der Server auf die Uhr sieht: Ablaufdaten."""
-    return date.today()
+    """Die einzige Stelle, an der der Server auf die Uhr sieht."""
+    try:
+        return datetime.now(ZoneInfo(ZEITZONE)).date()
+    except (ZoneInfoNotFoundError, ValueError):
+        # Eine unbekannte Zeitzone darf den Dienst nicht anhalten —
+        # gemeldet wird sie beim Start.
+        return datetime.now(timezone.utc).date()
 
 
 def baue_handler(db: Path | None) -> type[BaseHTTPRequestHandler]:
@@ -223,6 +241,11 @@ def baue_handler(db: Path | None) -> type[BaseHTTPRequestHandler]:
                 if leer:
                     self._sende(200, ERSTER_BENUTZER.encode(), "text/html; charset=utf-8")
                     return
+                if teile.path == "/api/health":
+                    # Ohne Anmeldung, weil ein Wächter sie nicht hat — und
+                    # ohne jede Betriebszahl, damit sie nichts verrät.
+                    self._health()
+                    return
                 if teile.path == "/sw.js":
                     # Muss von der Wurzel kommen, sonst darf er nur /sw/ steuern.
                     self._sende(200, DIENER.encode(), "text/javascript; charset=utf-8")
@@ -282,6 +305,8 @@ def baue_handler(db: Path | None) -> type[BaseHTTPRequestHandler]:
                     self._praeparat(daten)
                 elif teile.path == "/api/abgang":
                     self._abgang(daten)
+                elif teile.path == "/api/passwort":
+                    self._passwort(daten)
                 else:
                     raise _Fehler(404, "Unbekannter Pfad")
             except _Fehler as fehler:
@@ -329,6 +354,22 @@ def baue_handler(db: Path | None) -> type[BaseHTTPRequestHandler]:
             self.end_headers()
             self.wfile.write(koerper)
 
+        def _passwort(self, daten: dict[str, Any]) -> None:
+            """Das alte Passwort wird verlangt — ein offener Rechner soll
+            nicht reichen, um jemanden auszusperren."""
+            sitzung = self._sitzung()
+            alt = str(daten.get("alt") or "")
+            neu = str(daten.get("neu") or "")
+            with self._mit_db() as conn:
+                gefunden = archiv.benutzer_mit_hash(conn, sitzung.benutzer_id)
+                if gefunden is None or not pruefe_passwort(alt, gefunden[1]):
+                    raise _Fehler(401, "Das bisherige Passwort stimmt nicht.")
+                try:
+                    archiv.setze_passwort(conn, sitzung.benutzer_id, hashe_passwort(neu))
+                except PasswortZuKurz as fehler:
+                    raise _Fehler(400, str(fehler)) from fehler
+            self._json(200, {"geaendert": True, "sitzungen_beendet": True})
+
         def _abmelden(self) -> None:
             token = self._token()
             if token:
@@ -345,6 +386,16 @@ def baue_handler(db: Path | None) -> type[BaseHTTPRequestHandler]:
             self.wfile.write(koerper)
 
         # --- Fachliches ---------------------------------------------
+        def _health(self) -> None:
+            """Prüft die Datenbank mit, nicht nur den Prozess."""
+            zustand = {"status": "ok", **stempel()}
+            try:
+                with self._mit_db() as conn:
+                    conn.execute("SELECT 1 FROM schema_version LIMIT 1").fetchone()
+            except sqlite3.Error as fehler:
+                zustand = {"status": "fehler", "grund": str(fehler), **stempel()}
+            self._json(200 if zustand["status"] == "ok" else 503, zustand)
+
         def _herden(self, frage: dict[str, str]) -> None:
             sitzung = self._sitzung()
             with self._mit_db() as conn:
@@ -551,6 +602,14 @@ def laufe(port: int = STANDARD_PORT, db: Path | None = None, host: str | None = 
     ziel = host or LOKAL
     server = starte(port, db, ziel)
     print(f"Taktgeber läuft auf http://{ziel}:{port}  (Strg+C beendet)")
+    try:
+        ZoneInfo(ZEITZONE)
+        print(f"Betriebstag nach Zeitzone {ZEITZONE} — heute ist der {heute()}.")
+    except (ZoneInfoNotFoundError, ValueError):
+        print(
+            f"WARNUNG: Zeitzone {ZEITZONE!r} ist unbekannt, gerechnet wird in UTC. "
+            "ELEVAGE_ZEITZONE prüfen."
+        )
     if ziel != LOKAL and not os.environ.get("ELEVAGE_SECURE_COOKIE"):
         print(
             "WARNUNG: nicht auf localhost gebunden und ELEVAGE_SECURE_COOKIE ist "

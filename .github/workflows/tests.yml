@@ -1,0 +1,53 @@
+# Die vier Gates auf jeden Push und jeden Pull Request.
+#
+# Der Pages-Workflow lässt sie zwar auch laufen, aber nur auf dem Zweig,
+# der veröffentlicht. Ein Gate, das nicht überall läuft, ist keins.
+name: Tests
+
+on:
+  push:
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  gates:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        # Die untere Grenze aus pyproject.toml und eine aktuelle Fassung.
+        python: ["3.10", "3.12"]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python }}
+      - run: python -m pip install --quiet -e ".[dev]"
+      - name: Formatierung
+        run: python -m ruff format --check .
+      - name: Lint
+        run: python -m ruff check .
+      - name: Typprüfung
+        run: python -m mypy
+      - name: Tests
+        run: python -m pytest -q
+
+  bild:
+    # Ein Dockerfile, das nie gebaut wurde, ist eine Behauptung.
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Bild bauen
+        run: docker build -t elevage-probe .
+      - name: Startet es auch?
+        run: |
+          docker run -d --name probe -p 8080:8080 \
+            -e ELEVAGE_ALLOW_REMOTE=1 elevage-probe
+          for versuch in $(seq 1 20); do
+            if curl -fsS http://127.0.0.1:8080/api/health; then break; fi
+            sleep 1
+          done
+          curl -fsS http://127.0.0.1:8080/api/health | grep -q '"status": "ok"'
+          docker logs probe

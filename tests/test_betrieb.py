@@ -90,3 +90,30 @@ def test_vorfall_des_anderen_mandanten_loest_nichts_aus(conn):
 def test_unbekannte_herde_wirft_statt_zu_raten(conn):
     with pytest.raises(KeyError):
         tagesbild(conn, "hof", "XX", date(2026, 3, 17))
+
+
+def test_eine_handaenderung_am_rezept_hinterlaesst_eine_spur(conn):
+    """Der Ausgleich tat es längst — die bewusste Änderung gehört erst recht
+    gegengelesen."""
+    from datetime import date as _date
+
+    from elevage.betrieb import passe_rezept_an
+    from elevage.models import Rezeptanpassung
+
+    passe_rezept_an(
+        conn,
+        "hof",
+        Rezeptanpassung(
+            tenant_id="hof",
+            rezept_key="PONTE_AB_21",
+            artikel_id="MAIS",
+            kg_je_100=43.3,
+            grund="am Original geprüft",
+            geaendert_am=_date(2026, 9, 13),
+        ),
+    )
+    vermerke = archiv.vermerke_fuer(conn, "hof")
+    assert any(v.vermerk_id.startswith("anpassung:") for v in vermerke)
+    text = next(v.text for v in vermerke if v.vermerk_id.startswith("anpassung:"))
+    assert "43.30" in text and "Blatt: 50.00" in text
+    assert "am Original geprüft" in text

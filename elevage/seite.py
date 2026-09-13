@@ -303,6 +303,10 @@ body:not([data-rolle="LEITUNG"]) #vermerke button { display: none; }
 
 <section class="karte" id="block-befunde" hidden><h2>Befunde</h2><div id="befunde"></div></section>
 
+<footer class="leise" style="text-align:center;padding:8px 0 20px">
+  <span id="stempel"></span>
+</footer>
+
 </div>
 
 <div class="toast" id="toast" hidden>
@@ -765,6 +769,10 @@ $("herde").onchange = lade;
 $("stichtag").value = heute();
 $("vorfalltag").value = heute();
 $("abgangTag").value = heute();
+fetch("/api/health").then((a) => a.json()).then((h) => {
+  $("stempel").textContent = "Version " + h.version + " \u00b7 " + h.commit;
+}).catch(() => {});
+
 zeigeBand();
 nachreichen();
 lade();

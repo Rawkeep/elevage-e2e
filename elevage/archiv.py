@@ -231,13 +231,25 @@ def migriere(conn: sqlite3.Connection) -> int:
     return stand
 
 
+_GEWANDERT: set[str] = set()
+"""Welche Dateien dieser Prozess schon gewandert hat.
+
+Der Server öffnet je Anfrage neu. Die Migration jedes Mal durchlaufen zu
+lassen ist bei 0,01 req/s zwar folgenlos, aber unsauber. Ein zweiter
+Prozess hat sein eigenes Gedächtnis und wandert bei seiner ersten
+Verbindung selbst — die Migration ist idempotent, das kostet nichts."""
+
+
 @contextmanager
 def oeffne(pfad: Path | None = None) -> Iterator[sqlite3.Connection]:
     """Verbindung mit gewandertem Schema. `:memory:` geht über Path(':memory:')."""
     ziel = pfad or STANDARD_PFAD
     conn = _verbinde(ziel)
     try:
-        migriere(conn)
+        merkmal = str(ziel.resolve()) if ziel.exists() else str(ziel)
+        if merkmal not in _GEWANDERT:
+            migriere(conn)
+            _GEWANDERT.add(merkmal)
         yield conn
     finally:
         conn.close()
@@ -804,6 +816,28 @@ def lade_sitzung(conn: sqlite3.Connection, token_hash_wert: str, stichtag: date)
         name=zeile["name"],
         laeuft_ab_am=date.fromisoformat(zeile["laeuft_ab_am"]),
     )
+
+
+def schliesse_alle_sitzungen(conn: sqlite3.Connection, benutzer_id: str) -> int:
+    """Nach einem Passwortwechsel gilt kein altes Cookie mehr.
+
+    Das ist der ganze Zweck: wer ein Passwort ändert, tut das oft, weil er
+    vermutet, dass es jemand kennt. Bestehende Sitzungen weiterlaufen zu
+    lassen hieße, genau diesen Fall offen zu halten."""
+    cur = conn.execute("DELETE FROM sitzung WHERE benutzer_id = ?", (benutzer_id,))
+    conn.commit()
+    return cur.rowcount
+
+
+def setze_passwort(conn: sqlite3.Connection, benutzer_id: str, passwort_hash: str) -> bool:
+    cur = conn.execute(
+        "UPDATE benutzer SET passwort_hash = ? WHERE benutzer_id = ?",
+        (passwort_hash, benutzer_id),
+    )
+    conn.commit()
+    if cur.rowcount:
+        schliesse_alle_sitzungen(conn, benutzer_id)
+    return cur.rowcount == 1
 
 
 def schliesse_sitzung(conn: sqlite3.Connection, token_hash_wert: str) -> bool:

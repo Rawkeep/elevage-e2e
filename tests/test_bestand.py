@@ -38,7 +38,7 @@ def abgang(
 def test_ohne_bewegung_gilt_die_einstallzahl_und_das_wird_gesagt():
     stand = rechne_bestand(herde(), date(2026, 4, 1), [])
     assert stand.tierzahl == 1000
-    assert any("Keine Bestandsbewegung erfasst" in i for i in stand.issues)
+    assert any("Keine Bestandsbewegung erfasst" in i.text for i in stand.issues)
 
 
 def test_abgaenge_zaehlen_bis_zum_stichtag_und_nicht_weiter():
@@ -61,25 +61,25 @@ def test_verkauft_ist_kein_verlust():
 def test_verluste_ueber_der_schwelle_werden_gemeldet():
     stand = rechne_bestand(herde(), date(2026, 6, 1), [abgang(date(2026, 3, 10), 60)])
     assert stand.verluste_prozent == 6.0
-    assert any("Verluste seit dem Einstallen" in i for i in stand.issues)
+    assert any("Verluste seit dem Einstallen" in i.text for i in stand.issues)
 
 
 def test_eine_haeufung_ist_etwas_anderes_als_dieselbe_zahl_ueber_monate():
     frisch = rechne_bestand(herde(), date(2026, 3, 12), [abgang(date(2026, 3, 10), 25)])
-    assert any("Häufung" in i for i in frisch.issues)
+    assert any("Häufung" in i.text for i in frisch.issues)
 
     verteilt = rechne_bestand(
         herde(),
         date(2026, 6, 1),
         [abgang(date(2026, 3, 10), 12, nr="a"), abgang(date(2026, 4, 10), 13, nr="b")],
     )
-    assert not any("Häufung" in i for i in verteilt.issues)
+    assert not any("Häufung" in i.text for i in verteilt.issues)
 
 
 def test_mehr_abgaenge_als_tiere_ist_ein_befund_keine_negative_zahl():
     stand = rechne_bestand(herde(100), date(2026, 4, 1), [abgang(date(2026, 3, 10), 150)])
     assert stand.tierzahl == 0
-    assert any("stimmt eine Buchung nicht" in i for i in stand.issues)
+    assert any("stimmt eine Buchung nicht" in i.text for i in stand.issues)
 
 
 def test_fremde_herde_und_fremder_mandant_zaehlen_nicht_mit():

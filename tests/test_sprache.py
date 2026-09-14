@@ -12,8 +12,15 @@ def test_fehlende_vokabel_faellt_auf_deutsch_zurueck():
     assert uebersetze("Gibt es nicht", "fr") == "Gibt es nicht"
     assert uebersetze("Überfällig", "fr") == "En retard"
     assert uebersetze("Überfällig", "de") == "Überfällig"
-    assert uebersetze("Überfällig") == "Überfällig"  # Vorgabe ist Deutsch
-    assert VORGABE == "de" and set(SPRACHEN) == {"de", "fr"}
+
+
+def test_franzoesisch_ist_die_vorgabe():
+    """Die Blätter sind französisch, der Stall auch — Deutsch wäre die
+    Sprache des Werkzeugbauers, nicht die der Arbeit."""
+    assert VORGABE == "fr" and set(SPRACHEN) == {"de", "fr"}
+    assert uebersetze("Überfällig") == "En retard"
+    # Deutsch bleibt die Sprache des Quelltextes und der Rückfall.
+    assert uebersetze("Gibt es nicht") == "Gibt es nicht"
 
 
 def test_das_woerterbuch_ist_gueltiges_json_und_nur_franzoesisch():

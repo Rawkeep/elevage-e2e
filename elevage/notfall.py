@@ -28,6 +28,7 @@ from elevage.models import (
     Schritt,
     Tierart,
     Verabreichung,
+    befund,
 )
 from elevage.rezepte import REZEPTE
 
@@ -40,14 +41,19 @@ ERHOLUNG_TAGE = 4
 DOSIS_JE_LITER = VORGABE_DOSIS
 """Verbatim aus den beiden NB-Kästen — die Blätter nennen zwei Dosen."""
 
-DOSIS_WIDERSPRUCH = (
+DOSIS_WIDERSPRUCH = befund(
     "Die Blätter nennen zwei Dosen für dasselbe Mittel: 0,5 g/l (Masthuhn) "
     "und 1 g/l (Junghenne). Beide stehen so im NB-Kasten; hier gilt die des "
-    "eigenen Blattes, solange der Betrieb nichts anderes eingestellt hat."
+    "eigenen Blattes, solange der Betrieb nichts anderes eingestellt hat.",
+    "Les fiches donnent deux doses pour le même produit : 0,5 g/l (poulet de "
+    "chair) et 1 g/l (poulette). Les deux figurent ainsi dans l'encadré NB ; "
+    "ici c'est celle de la fiche concernée qui s'applique, tant que "
+    "l'exploitation n'a rien réglé d'autre.",
 )
 
-DOSIS_VOM_BETRIEB = (
-    "Die Desinfektionsdosis ist eine Einstellung dieses Betriebs, nicht der Wert des Blattes."
+DOSIS_VOM_BETRIEB = befund(
+    "Die Desinfektionsdosis ist eine Einstellung dieses Betriebs, nicht der Wert des Blattes.",
+    "La dose de désinfection est un réglage de cette exploitation, pas la valeur de la fiche.",
 )
 
 DESINFEKTION = ["VIRKON", "VIRUNET"]

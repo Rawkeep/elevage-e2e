@@ -71,13 +71,13 @@ def test_unbekannte_wartezeit_ist_keine_freigabe():
     """Die härteste Regel: kein Eintrag heißt Befund, nicht null."""
     sperren, issues = rechne([quittung(ANTIBIOTIKUM, date(2026, 3, 3), "COVIT")], [mittel("COVIT")])
     assert sperren == []
-    assert any("Unbekannt ist nicht null" in i for i in issues)
+    assert any("Unbekannt ist nicht null" in i.text for i in issues)
 
 
 def test_ohne_angabe_des_mittels_wird_nicht_geraten():
     sperren, issues = rechne([quittung(ANTIBIOTIKUM, date(2026, 3, 3))], [])
     assert sperren == []
-    assert any("ohne Angabe, welches Mittel" in i for i in issues)
+    assert any("ohne Angabe, welches Mittel" in i.text for i in issues)
 
 
 def test_ein_unbekanntes_mittel_faellt_auf():
@@ -85,7 +85,7 @@ def test_ein_unbekanntes_mittel_faellt_auf():
         [quittung(ANTIBIOTIKUM, date(2026, 3, 3), "IRGENDWAS")], [mittel("COVIT", eier=7)]
     )
     assert sperren == []
-    assert any("IRGENDWAS" in i for i in issues)
+    assert any("IRGENDWAS" in i.text for i in issues)
 
 
 def test_laeuft_noch_haengt_am_stichtag():
@@ -106,7 +106,7 @@ def test_masthuhn_fragt_nach_fleisch_nicht_nach_eiern():
         tierart=Tierart.MASTHUHN,
     )
     assert sperren == []
-    assert any("COVIT" in i for i in issues)
+    assert any("COVIT" in i.text for i in issues)
 
     mit_fleisch, _ = rechne(
         [quittung("CHAIR_J2_ANTIBIOTIKUM", date(2026, 3, 3), "COVIT")],

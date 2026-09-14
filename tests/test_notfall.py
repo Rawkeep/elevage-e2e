@@ -58,7 +58,7 @@ def test_die_beiden_blaetter_nennen_zwei_dosen():
     mast = schritte_fuer_vorfall(vorfall(), herde(Tierart.MASTHUHN))[0]
     lege = schritte_fuer_vorfall(vorfall(), herde())[0]
     assert "0,5 g/l" in mast.titel and "1 g/l" in lege.titel
-    assert any("zwei Dosen" in i for i in lege.issues)
+    assert any("zwei Dosen" in i.text for i in lege.issues)
 
 
 def test_jeder_vorfall_bekommt_eigene_schluessel():

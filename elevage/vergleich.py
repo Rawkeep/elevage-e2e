@@ -14,12 +14,14 @@ from __future__ import annotations
 
 from elevage.models import (
     OFFENES_ENDE,
+    Befund,
     Kategorie,
     Programm,
     Programmunterschied,
     Programmvergleich,
     Schritt,
     Tierart,
+    befund,
 )
 from elevage.programme import alle_programme, programm
 
@@ -114,6 +116,13 @@ def _zusammenfassung(schritte: list[Schritt]) -> str:
     return " · ".join(_fenster(s) for s in schritte)
 
 
+def _takt_fr(takte: list[int]) -> str | None:
+    """Dasselbe auf Französisch — der Befund trägt beide Fassungen."""
+    if not takte:
+        return None
+    return "tous les " + " / ".join(str(t) for t in takte) + " jours"
+
+
 def _takt_text(takte: list[int]) -> str | None:
     """„alle 30 Tage“ bzw. „alle 30 / 90 Tage“ — None, wenn es keine gibt."""
     if not takte:
@@ -129,9 +138,14 @@ def _nicht_vergleichbar(links: Programm, rechts: Programm) -> Programmvergleich:
         links_titel=links.titel,
         rechts_titel=rechts.titel,
         issues=[
-            f"„{links.titel}“ gilt für {links.tierart.value}, "
-            f"„{rechts.titel}“ für {rechts.tierart.value} — "
-            "die Blätter sind nicht vergleichbar."
+            befund(
+                f"„{links.titel}“ gilt für {links.tierart.value}, "
+                f"„{rechts.titel}“ für {rechts.tierart.value} — "
+                "die Blätter sind nicht vergleichbar.",
+                f"« {links.titel_fr or links.titel} » vaut pour {links.tierart.value}, "
+                f"« {rechts.titel_fr or rechts.titel} » pour {rechts.tierart.value} — "
+                "les programmes ne sont pas comparables.",
+            )
         ],
     )
 
@@ -145,14 +159,19 @@ def vergleiche(links: Programm, rechts: Programm) -> Programmvergleich:
     if links.tierart is not rechts.tierart:
         return _nicht_vergleichbar(links, rechts)
 
-    issues: list[str] = []
+    issues: list[Befund] = []
     l_themen, l_offen = _themen(links)
     r_themen, r_offen = _themen(rechts)
     for blatt, offen in ((links, l_offen), (rechts, r_offen)):
         for titel in offen:
             issues.append(
-                f"„{blatt.titel}“: Bei „{titel}“ ist kein Erreger erkannt — "
-                "die Zeile steht für sich und ist nicht gegengestellt."
+                befund(
+                    f"„{blatt.titel}“: Bei „{titel}“ ist kein Erreger erkannt — "
+                    "die Zeile steht für sich und ist nicht gegengestellt.",
+                    f"« {blatt.titel_fr or blatt.titel} » : aucun agent pathogène "
+                    f"reconnu dans « {titel} » — la ligne reste seule et n'est pas "
+                    "mise en regard.",
+                )
             )
 
     zeilen: list[Programmunterschied] = []
@@ -183,9 +202,17 @@ def vergleiche(links: Programm, rechts: Programm) -> Programmvergleich:
             )
         )
         issues.append(
-            f"{name} als Dauerregel: „{links.titel}“ {_takt_text(l_takte) or 'gar nicht'}, "
-            f"„{rechts.titel}“ {_takt_text(r_takte) or 'gar nicht'} — "
-            "das ist keine Rundungsfrage, das entscheidet der Betrieb."
+            befund(
+                f"{name} als Dauerregel: „{links.titel}“ "
+                f"{_takt_text(l_takte) or 'gar nicht'}, „{rechts.titel}“ "
+                f"{_takt_text(r_takte) or 'gar nicht'} — das ist keine "
+                "Rundungsfrage, das entscheidet der Betrieb.",
+                f"{name} en règle permanente : « {links.titel_fr or links.titel} » "
+                f"{_takt_fr(l_takte) or 'pas du tout'}, "
+                f"« {rechts.titel_fr or rechts.titel} » "
+                f"{_takt_fr(r_takte) or 'pas du tout'} — ce n'est pas une question "
+                "d'arrondi, c'est à l'exploitation de trancher.",
+            )
         )
 
     return Programmvergleich(

@@ -46,7 +46,7 @@ def test_der_takt_der_dauerregeln_wird_gemeldet():
     assert z is not None
     assert z.links == "alle 30 / 90 Tage"
     assert z.rechts == "alle 180 Tage"
-    assert any("Rundungsfrage" in i for i in v.issues)
+    assert any("Rundungsfrage" in i.text for i in v.issues)
 
 
 def test_begleitendes_wird_gezaehlt_statt_aufgezaehlt():
@@ -75,7 +75,7 @@ def test_zwei_tierarten_werden_nicht_verglichen():
     """Eine Tabelle darüber wäre Scheinpräzision."""
     v = vergleiche(programm(Tierart.MASTHUHN), programm(Tierart.LEGEHENNE))
     assert not v.zeilen
-    assert any("nicht vergleichbar" in i for i in v.issues)
+    assert any("nicht vergleichbar" in i.text for i in v.issues)
 
 
 def test_ein_blatt_mit_sich_selbst_ist_ueberall_gleich():
@@ -87,7 +87,7 @@ def test_ein_blatt_mit_sich_selbst_ist_ueberall_gleich():
 def test_der_vergleich_urteilt_nicht():
     """Er stellt nebeneinander. Welches Blatt gilt, entscheidet der Betrieb."""
     v = vergleiche_ids(Tierart.LEGEHENNE, IVO, VETO)
-    text = " ".join(v.issues).lower()
+    text = " ".join(i.text for i in v.issues).lower()
     for wort in ("empfehl", "besser", "richtig", "sollte"):
         assert wort not in text, wort
 

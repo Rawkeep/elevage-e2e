@@ -11,6 +11,7 @@ from datetime import date, timedelta
 from elevage.einstellung import notfall_dosis
 from elevage.models import (
     Ampel,
+    Befund,
     Ereignis,
     Herde,
     Quittung,
@@ -184,15 +185,29 @@ def offene_issues(
     stichtag: date,
     ereignisse: list[Ereignis] | None = None,
     einstellungen: dict[str, str] | None = None,
-) -> list[str]:
-    """Widersprüche, die in den geltenden Schritten stecken — ohne Dopplung."""
-    raus: list[str] = []
+) -> list[Befund]:
+    """Widersprüche, die in den geltenden Schritten stecken — ohne Dopplung.
+
+    Der Schlüssel des Schritts kommt vor beide Fassungen: er ist die
+    Nummer, unter der jemand den Widerspruch am Papier nachschlägt, und
+    die ist in keiner Sprache eine andere.
+    """
+    raus: list[Befund] = []
+    gesehen: set[str] = set()
     konflikt = programm_konflikt(herde.tierart, herde.programm_id)
     if konflikt:
         raus.append(konflikt)
+        gesehen.add(konflikt.text)
     for s in schritte_fuer(herde, stichtag, ereignisse, einstellungen):
         for i in s.issues:
-            zeile = f"{s.key}: {i}"
-            if zeile not in raus:
-                raus.append(zeile)
+            zeile = f"{s.key}: {i.text}"
+            if zeile in gesehen:
+                continue
+            gesehen.add(zeile)
+            raus.append(
+                Befund(
+                    text=zeile,
+                    text_fr=f"{s.key}: {i.text_fr}" if i.text_fr else None,
+                )
+            )
     return raus

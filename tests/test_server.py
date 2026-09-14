@@ -365,7 +365,7 @@ def test_ohne_wartezeit_gibt_es_einen_befund_statt_einer_freigabe(dienst):
     )
     bild = stall.hole("/api/tagesbild?herde=H1&stichtag=2026-03-10")
     assert bild["sperren"] == []
-    assert any("Unbekannt ist nicht null" in i for i in bild["issues"])
+    assert any("Unbekannt ist nicht null" in i["text"] for i in bild["issues"])
 
 
 def test_nur_die_leitung_traegt_eine_wartezeit_ein(dienst):
@@ -394,7 +394,7 @@ def test_abgang_senkt_den_bestand_und_hebt_den_verzehr(dienst):
     assert nachher["bestand"]["tierzahl"] == 800
     assert nachher["bestand"]["verlusteProzent"] == 20.0
     assert nachher["futter"]["bedarfJeTagKg"] < vorher["futter"]["bedarfJeTagKg"]
-    assert any("Verluste seit dem Einstallen" in i for i in nachher["issues"])
+    assert any("Verluste seit dem Einstallen" in i["text"] for i in nachher["issues"])
 
 
 def test_derselbe_abgang_zweimal_gebucht_zaehlt_einmal(dienst):

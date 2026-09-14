@@ -62,7 +62,7 @@ ein Wächter-Job daran hängen, ohne die Ausgabe zu lesen.
 | `notfall.py` | Gumboro-Schema und Leberschutz beim Futterwechsel (NB-Kasten) |
 | `wartezeit.py` | Ab wann nach einer Behandlung wieder vermarktet werden darf |
 | `bestand.py` | Wie viele Tiere wirklich im Stall stehen |
-| `sprache.py` | Wörterbuch Deutsch/Französisch für die Oberfläche |
+| `sprache.py` | Wörterbuch Deutsch/Französisch für die Oberfläche (Vorgabe: FR) |
 | `version.py` | Ein Versionsstempel, gelesen statt zweimal geschrieben |
 | `verzehr.py` | Verzehrkurve: gemessen aus dem Mischprotokoll, sonst Richtwert |
 | `archiv.py` | SQLite (Stdlib): Herden, Quittungen, Mischprotokoll, Vorfälle |
@@ -328,7 +328,12 @@ Unbekannte Einstellungsschlüssel werden abgewiesen, nicht abgelegt.
 Die Quellblätter sind französisch, die Leute im Stall vermutlich auch. Die
 Oberfläche lässt sich im Kopf umschalten (Deutsch / Français).
 
-Vier Entscheidungen:
+**Französisch ist die Vorgabe** (`sprache.VORGABE = "fr"`). Die Blätter sind
+französisch, der Stall ist es auch — Deutsch wäre die Sprache des
+Werkzeugbauers, nicht die der Arbeit. Deutsch bleibt wählbar, bleibt die
+Sprache im Quelltext und bleibt der Rückfall, wenn etwas fehlt.
+
+Fünf Entscheidungen:
 
 * **Die Termine sprechen den Wortlaut ihres Blattes, nicht eine
   Rückübersetzung.** Die Blätter *sind* französisch; der deutsche Titel im
@@ -337,19 +342,25 @@ Vier Entscheidungen:
   Papier in der Hand Zeile für Zeile gegenlesen. Ein Wörterbuch hätte aus
   „2ème Vaccin GUMBORO“ eine glatte Übersetzung gemacht und den
   Widerspruch des Blattes dabei weggebügelt.
-* **Nur die Oberfläche wird übersetzt, nicht die Daten.** Präparatnamen,
-  Rezeptposten und Befunde bleiben, wie sie sind — ein Befund, der in der
-  Übersetzung eine Nuance verliert, ist schlimmer als einer auf Deutsch.
-  Ein Feld `praeparate_fr` gibt es deshalb nicht; ein Test hält das fest.
+* **Befunde sprechen beide Sprachen** (`models.Befund`: `text` +
+  `text_fr`). Sie erklären, warum etwas nicht stimmt — wer sie nicht lesen
+  kann, kann nichts mit ihnen anfangen. Ein Wörterbuch half hier nicht: die
+  meisten tragen Zahlen („46,50 → 45,40 kg“), und ein Musterabgleich auf
+  zusammengesetzte Sätze wäre genau die Sorte Magie, die dieses Haus
+  vermeidet. Also schreibt die erzeugende Stelle beide Fassungen. Dasselbe
+  gilt für die Merksätze der Blätter (`models.Satz`) und für den
+  Prüfvermerk, der gespeichert wird (Migration 9).
+* **Präparatnamen und Rezeptposten bleiben, wie sie sind.** Ein Feld
+  `praeparate_fr` gibt es nicht; ein Test hält das fest.
 * **Fehlt eine Vokabel oder ein Wortlaut, steht der deutsche Text da** —
   kein leeres Feld, kein Schlüsselname.
 * **Die Wahl lebt im Browser**, nicht in der Datenbank: die Sprache gehört
   dem Menschen vor dem Gerät, nicht dem Konto.
 
 Zwei Tests bewachen das von beiden Seiten: `test_sprache.py` prüft, dass
-kein Text im Markup ohne Vokabel ist, `test_wortlaut.py`, dass kein Termin
-ohne französischen Wortlaut ausgeliefert wird. Das zweite fehlte — und
-genau da blieb die Ansicht halb deutsch.
+kein Text im Markup ohne Vokabel ist, `test_wortlaut.py`, dass kein Termin,
+kein Befund und kein Merksatz ohne französische Fassung ausgeliefert wird.
+Das zweite fehlte — und genau da blieb die Ansicht halb deutsch.
 
 ## Betriebsalltag
 

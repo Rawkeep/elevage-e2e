@@ -18,12 +18,16 @@ from typing import TypeVar
 
 from elevage.models import (
     OFFENES_ENDE,
+    Befund,
     Dauerregel,
     Kategorie,
     Programm,
+    Satz,
     Schritt,
     Tierart,
     Verabreichung,
+    befund,
+    satz,
 )
 
 # --- Tuning, keine Magic Numbers im Code --------------------------------
@@ -184,8 +188,12 @@ PROGRAMM_MASTHUHN: list[Schritt] = [
         folgt_auf="CHAIR_J10_ND_RAPPEL",
         vorlauf_tage=VORLAUF_IMPFSTOFF_TAGE,
         issues=[
-            "Antikokzidium (J19-J21) und Impfung am selben Tag J21 — "
-            "das Blatt sagt nicht, was zuerst geht"
+            befund(
+                "Antikokzidium (J19-J21) und Impfung am selben Tag J21 — "
+                "das Blatt sagt nicht, was zuerst geht",
+                "Anticoccidien (J19-J21) et vaccination le même jour J21 — la fiche "
+                "ne dit pas ce qui passe en premier",
+            )
         ],
     ),
     Schritt(
@@ -363,8 +371,12 @@ PROGRAMM_LEGEHENNE: list[Schritt] = [
         folgt_auf="PONDEUSE_J12_GUMBORO_2",
         vorlauf_tage=VORLAUF_IMPFSTOFF_TAGE,
         issues=[
-            "Das Blatt nennt J12 UND J17 beide '2ème Vaccin GUMBORO' — "
-            "hier als 2. und 3. Gabe geführt, Zählung des Originals prüfen"
+            befund(
+                "Das Blatt nennt J12 UND J17 beide '2ème Vaccin GUMBORO' — "
+                "hier als 2. und 3. Gabe geführt, Zählung des Originals prüfen",
+                "La fiche appelle J12 ET J17 « 2ème Vaccin GUMBORO » — comptés ici "
+                "comme 2e et 3e administration, vérifier la numérotation de l'original",
+            )
         ],
     ),
     Schritt(
@@ -454,8 +466,12 @@ PROGRAMM_LEGEHENNE: list[Schritt] = [
         folgt_auf="PONDEUSE_J21_ND_IB",
         vorlauf_tage=VORLAUF_IMPFSTOFF_TAGE,
         issues=[
-            "Zeile steht auf dem Blatt in Woche 6 (Tag 36-42), ist dort aber auf "
-            "Tag 35-40 datiert — die explizite Tagesangabe gilt"
+            befund(
+                "Zeile steht auf dem Blatt in Woche 6 (Tag 36-42), ist dort aber auf "
+                "Tag 35-40 datiert — die explizite Tagesangabe gilt",
+                "La ligne figure en semaine 6 (jours 36-42) mais y est datée des "
+                "jours 35-40 — c'est l'indication en jours qui fait foi",
+            )
         ],
     ),
     Schritt(
@@ -504,8 +520,13 @@ PROGRAMM_LEGEHENNE: list[Schritt] = [
         folgt_auf="PONDEUSE_D35_ND_RAPPEL",
         vorlauf_tage=VORLAUF_IMPFSTOFF_TAGE,
         issues=[
-            "Das Blatt führt diese Auffrischung zweimal: in der Woche-7-Zeile mit "
-            "Tag 57-60 und noch einmal als Zeile 'Woche 9' — hier EIN Termin"
+            befund(
+                "Das Blatt führt diese Auffrischung zweimal: in der Woche-7-Zeile mit "
+                "Tag 57-60 und noch einmal als Zeile 'Woche 9' — hier EIN Termin",
+                "La fiche porte ce rappel deux fois : dans la ligne semaine 7 avec "
+                "les jours 57-60, puis à nouveau en ligne « semaine 9 » — ici UNE "
+                "seule échéance",
+            )
         ],
     ),
     Schritt(
@@ -793,10 +814,14 @@ PROGRAMM_LEGEHENNE_VETO: list[Schritt] = [
         vorlauf_tage=VORLAUF_MEDIKAMENT_TAGE,
         quelle=VETO,
         issues=[
-            "Die Zeile ist auf dem Blatt mit "
-            "„ANTI-STRESS (EB)“ überschrieben, nennt aber COX B3 bzw. AMPROLIUM — "
-            "beides Antikokzidia. Hier nach dem Präparat eingeordnet, "
-            "Überschrift des Originals prüfen."
+            befund(
+                "Die Zeile ist auf dem Blatt mit „ANTI-STRESS (EB)“ überschrieben, "
+                "nennt aber COX B3 bzw. AMPROLIUM — beides Antikokzidia. Hier nach "
+                "dem Präparat eingeordnet, Überschrift des Originals prüfen.",
+                "La ligne porte l'intitulé « ANTI-STRESS (EB) » mais cite COX B3 ou "
+                "AMPROLIUM — deux anticoccidiens. Classée ici d'après le produit ; "
+                "vérifier l'intitulé de l'original.",
+            )
         ],
     ),
     _stress(20, 20, 2),
@@ -977,8 +1002,12 @@ PROGRAMM_LEGEHENNE_VETO: list[Schritt] = [
         vorlauf_tage=VORLAUF_IMPFSTOFF_TAGE,
         quelle=VETO,
         issues=[
-            "Das Blatt schreibt hier „CORYMINE“, an J84 aber "
-            "„CORYMUNE“ — vermutlich dasselbe Mittel, Schreibweise am Original prüfen."
+            befund(
+                "Das Blatt schreibt hier „CORYMINE“, an J84 aber „CORYMUNE“ — "
+                "vermutlich dasselbe Mittel, Schreibweise am Original prüfen.",
+                "La fiche écrit ici « CORYMINE », mais « CORYMUNE » à J84 — "
+                "probablement le même produit ; vérifier l'orthographe sur l'original.",
+            )
         ],
     ),
     _stress(121, 123, 13),
@@ -1006,8 +1035,12 @@ PROGRAMM_LEGEHENNE_VETO: list[Schritt] = [
         vorlauf_tage=VORLAUF_MEDIKAMENT_TAGE,
         quelle=VETO,
         issues=[
-            "Die Zeile nennt VITAFLASH/POWERVIT UND „EAU SIMPLE“ "
-            "nebeneinander — beides zugleich geht nicht. Hier als Anti-Stress geführt."
+            befund(
+                "Die Zeile nennt VITAFLASH/POWERVIT UND „EAU SIMPLE“ nebeneinander — "
+                "beides zugleich geht nicht. Hier als Anti-Stress geführt.",
+                "La ligne cite VITAFLASH/POWERVIT ET « EAU SIMPLE » côte à côte — "
+                "les deux à la fois, ce n'est pas possible. Classée ici en anti-stress.",
+            )
         ],
     ),
     Schritt(
@@ -1021,8 +1054,12 @@ PROGRAMM_LEGEHENNE_VETO: list[Schritt] = [
         hinweis="Ab hier trägt die Stallführung; die Entwurmung läuft alle zwei Monate weiter.",
         quelle=VETO,
         issues=[
-            "Das Blatt endet mit „à la Réforme“ und nennt kein "
-            "Datum — der Schritt läuft offen bis zur Ausstallung."
+            befund(
+                "Das Blatt endet mit „à la Réforme“ und nennt kein Datum — der "
+                "Schritt läuft offen bis zur Ausstallung.",
+                "La fiche se termine par « à la Réforme » sans donner de date — "
+                "l'étape court sans fin jusqu'à la réforme.",
+            )
         ],
     ),
 ]
@@ -1049,16 +1086,6 @@ WIEDERKEHREND_VETO: list[Dauerregel] = [
         hinweis="„Tous les 6 mois“ — deutlich seltener als im IVOGRAIN-Blatt (dort alle 30 Tage)",
         ab_tag=128,
     ),
-]
-
-
-HINWEISE_VETO = [
-    "Der Zugang zum Stall ist streng auf Sie und Ihren Tierarzt beschränkt.",
-    "Geimpft wird nur auf gesunde Tiere.",
-    "Alle sechs Monate sind Auffrischungen gegen Newcastle und infektiöse Bronchitis nötig.",
-    "Der Stall muss gut belüftet sein; Staub vermeiden.",
-    "Gleichwertige Präparate vom Markt sind erlaubt — fragen Sie Ihren Tierarzt.",
-    "Bei jeder Verhaltensänderung der Tiere den Tierarzt anrufen.",
 ]
 
 
@@ -1273,11 +1300,92 @@ WIEDERKEHREND_VETO = _mit_wortlaut(WIEDERKEHREND_VETO, WORTLAUT_VETO, HINWEIS_FR
 
 # --- Die Blätter als Ganzes, wählbar je Herde ---------------------------
 
-HINWEISE_IVOGRAIN = [
-    "Impfstoffe gekühlt halten und innerhalb von zwei Stunden verbrauchen.",
-    "Vor jeder Trinkwasserimpfung zwei Stunden dursten lassen.",
-    "Nur gesunde Tiere impfen.",
+# Die NB-Kästen der Blätter — verbatim, in ihrer eigenen Sprache. Sie
+# tragen keine Termine und stehen deshalb neben dem Plan, nicht darin.
+
+HINWEISE_CHAIR: list[Satz] = [
+    satz(
+        "Für Impfungen möglichst Mineralwasser verwenden. Bei Leitungswasser "
+        "für die Trinkwasserimpfung 2,5 g/l Magermilchpulver einrühren, bevor "
+        "der Impfstoff ins Wasser kommt.",
+        "Utiliser autant que possible l'eau minérale pour les vaccinations. En cas "
+        "d'utilisation de l'eau de robinet pour la vaccination en eau de boisson, "
+        "diluer 2,5 g/L d'eau de lait écrémé avant le mélange du vaccin à l'eau.",
+    ),
+    satz(
+        "Bei Gumboro: VIRKON oder VIRUNET (0,5 g/l) + Antikokzidium (1 g/l) über "
+        "4 Tage. Danach die Futteraufnahme mit einem Diuretikum wieder anschieben.",
+        "En cas de maladie de GUMBORO, associer VIRKON ou VIRUNET (0,5 g/L d'eau) "
+        "+ ANTICOCCIDIEN (1 g/L d'eau) sur 4 jours. Relancer la consommation "
+        "d'aliment après le passage de la GUMBORO en distribuant un diurétique.",
+    ),
 ]
+
+HINWEISE_PONDEUSE: list[Satz] = [
+    satz(
+        "Für Impfungen (Vernebelung, Augentropfen, Trinkwasser) Mineralwasser "
+        "verwenden. Bei Leitungswasser 2,5 g/l Magermilchpulver einrühren, bevor "
+        "der Impfstoff ins Wasser kommt.",
+        "Utiliser l'eau minérale pour les vaccinations en nébulisation, en goutte "
+        "oculaire et en eau de boisson. En cas d'utilisation de l'eau de robinet "
+        "pour la vaccination en eau de boisson, diluer 2,5 g/L de lait écrémé dans "
+        "l'eau avant le mélange du vaccin.",
+    ),
+    satz(
+        "Bei JEDEM Futterwechsel einen hepatorenalen Schutz mitgeben.",
+        "Mettre en place un protecteur hépatorénal durant chaque transition alimentaire.",
+    ),
+    satz(
+        "Bei Gumboro: VIRKON oder VIRUNET (1 g/l) + Antikokzidium über 4 Tage. "
+        "Danach die Futteraufnahme mit einem hepatorenalen Schutz wieder anschieben.",
+        "En cas de maladie de GUMBORO, associer VIRKON ou VIRUNET (1 g/L) + "
+        "ANTICOCCIDIEN sur 4 jours. Relancer la consommation d'aliment après le "
+        "passage de la maladie en distribuant un protecteur hépatorénal.",
+    ),
+    satz(
+        "In der Legeperiode: innere Entwurmung + Vitamine alle zwei Monate; "
+        "Newcastle (CLONE oder LASOTA — LASOTA vor dem Legepeak vermeiden) "
+        "einmal im Monat; Bronchite im Wechsel (H120 monatlich, CEVAC IBIRD "
+        "alle drei Monate).",
+        "Durant la période de ponte : déparasitage interne + vitamines une fois "
+        "chaque 2 mois. Vaccin CLONE ou LASOTA (éviter la souche LASOTA avant le "
+        "pic de ponte) une fois par mois et vaccins BRONCHITE INFECTIEUSE en "
+        "alternance (H120 une fois/mois et CEVAC IBIRD chaque 3 mois).",
+    ),
+]
+
+HINWEISE_VETO = [
+    satz(
+        "Der Zugang zum Stall ist streng auf Sie und Ihren Tierarzt beschränkt.",
+        "L'accès à votre élevage doit être strictement interdit à toute autre "
+        "personne que vous et votre vétérinaire.",
+    ),
+    satz(
+        "Geimpft wird nur auf gesunde Tiere.",
+        "La vaccination doit se faire sur des poules bien portantes.",
+    ),
+    satz(
+        "Alle sechs Monate sind Auffrischungen gegen Newcastle und infektiöse Bronchitis nötig.",
+        "Tous les 6 mois, les rappels de vaccination contre la Newcastle et la "
+        "bronchite infectieuse devront être nécessaires.",
+    ),
+    satz(
+        "Der Stall muss gut belüftet sein; Staub vermeiden.",
+        "Assurez-vous que votre poulailler est bien aéré et éviter toute "
+        "poussière dans votre poulailler.",
+    ),
+    satz(
+        "Gleichwertige Präparate vom Markt sind erlaubt — fragen Sie Ihren Tierarzt.",
+        "Vous pouvez utiliser des produits équivalents existants sur le marché : "
+        "demandez conseil à votre vétérinaire.",
+    ),
+    satz(
+        "Bei jeder Verhaltensänderung der Tiere den Tierarzt anrufen.",
+        "Contactez votre vétérinaire dès que vous constatez un changement de "
+        "comportement des volailles.",
+    ),
+]
+
 
 PROGRAMME: list[Programm] = [
     Programm(
@@ -1288,7 +1396,7 @@ PROGRAMME: list[Programm] = [
         quelle=IVOGRAIN,
         herausgeber="IVOGRAIN",
         schritte=PROGRAMM_MASTHUHN,
-        hinweise=HINWEISE_IVOGRAIN,
+        hinweise=HINWEISE_CHAIR,
         vorgabe=True,
     ),
     Programm(
@@ -1300,7 +1408,7 @@ PROGRAMME: list[Programm] = [
         herausgeber="IVOGRAIN",
         schritte=PROGRAMM_LEGEHENNE,
         dauerregeln=WIEDERKEHREND_LEGEPHASE,
-        hinweise=HINWEISE_IVOGRAIN,
+        hinweise=HINWEISE_PONDEUSE,
         vorgabe=True,
     ),
     Programm(
@@ -1344,19 +1452,25 @@ def programm(tierart: Tierart, programm_id: str | None = None) -> Programm:
     return vorgabe_programm(tierart)
 
 
-def programm_konflikt(tierart: Tierart, programm_id: str | None) -> str | None:
+def programm_konflikt(tierart: Tierart, programm_id: str | None) -> Befund | None:
     """Befund, wenn die Wahl nicht zur Tierart passt — sonst None."""
     if not programm_id:
         return None
+    gilt = vorgabe_programm(tierart)
     treffer = [p for p in PROGRAMME if p.programm_id == programm_id]
     if not treffer:
-        return (
-            f"Programm „{programm_id}“ ist unbekannt — es gilt „{vorgabe_programm(tierart).titel}“."
+        return befund(
+            f"Programm „{programm_id}“ ist unbekannt — es gilt „{gilt.titel}“.",
+            f"Le programme « {programm_id} » est inconnu — c'est "
+            f"« {gilt.titel_fr or gilt.titel} » qui s'applique.",
         )
     if treffer[0].tierart is not tierart:
-        return (
-            f"Programm „{treffer[0].titel}“ gilt für {treffer[0].tierart.value}, "
-            f"die Herde ist {tierart.value} — es gilt "
-            f"„{vorgabe_programm(tierart).titel}“."
+        gewaehlt = treffer[0]
+        return befund(
+            f"Programm „{gewaehlt.titel}“ gilt für {gewaehlt.tierart.value}, "
+            f"die Herde ist {tierart.value} — es gilt „{gilt.titel}“.",
+            f"Le programme « {gewaehlt.titel_fr or gewaehlt.titel} » vaut pour "
+            f"{gewaehlt.tierart.value}, la bande est {tierart.value} — c'est "
+            f"« {gilt.titel_fr or gilt.titel} » qui s'applique.",
         )
     return None

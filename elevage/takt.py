@@ -15,6 +15,7 @@ from elevage.mischung import baue_mischauftrag
 from elevage.models import (
     Ampel,
     Ausgleichsart,
+    Befund,
     Bestandsbewegung,
     Ereignis,
     Herde,
@@ -28,6 +29,7 @@ from elevage.models import (
     Termin,
     Tierarzt,
     Verzehrkurve,
+    befund,
 )
 from elevage.plan import (
     VORSCHAU_TAGE,
@@ -51,7 +53,7 @@ def rechne(
     *,
     kurve: Verzehrkurve | None = None,
     vorrat_kg: float | None = None,
-    kurven_issues: list[str] | None = None,
+    kurven_issues: list[Befund] | None = None,
     einstellungen: dict[str, str] | None = None,
     anpassungen: list[Rezeptanpassung] | None = None,
     vermerke: list[Pruefvermerk] | None = None,
@@ -99,7 +101,10 @@ def rechne(
         issues.append(
             KEIN_MASTFUTTER
             if herde.tierart.name == "MASTHUHN"
-            else "Für diese Lebenswoche liegt kein Futterblatt vor."
+            else befund(
+                "Für diese Lebenswoche liegt kein Futterblatt vor.",
+                "Aucune fiche d'alimentation pour cette semaine d'âge.",
+            )
         )
     else:
         issues.append(PHASEN_UEBERLAPPUNG)

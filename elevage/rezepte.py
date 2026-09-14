@@ -15,7 +15,7 @@ Lagerreichweite zweimal getrennt.
 
 from __future__ import annotations
 
-from elevage.models import Posten, Rezept, Tierart
+from elevage.models import Posten, Rezept, Tierart, befund
 
 # --- Tuning -------------------------------------------------------------
 SUMMEN_TOLERANZ_KG = 0.05
@@ -139,14 +139,20 @@ REZEPT_PONTE = Rezept(
 
 REZEPTE: list[Rezept] = [REZEPT_DEMARRAGE, REZEPT_POULETTE, REZEPT_PONTE]
 
-PHASEN_UEBERLAPPUNG = (
+PHASEN_UEBERLAPPUNG = befund(
     "Die Blätter überlappen an den Rändern (0-8 und 8-21, 8-21 und ab 21). "
-    "Hier gilt: Démarrage bis Woche 8, Poulette ab Woche 9, Ponte ab Woche 22."
+    "Hier gilt: Démarrage bis Woche 8, Poulette ab Woche 9, Ponte ab Woche 22.",
+    "Les fiches se chevauchent aux bornes (0-8 et 8-21, 8-21 et à partir de 21). "
+    "Ici : Démarrage jusqu'à la semaine 8, Poulette à partir de la semaine 9, "
+    "Ponte à partir de la semaine 22.",
 )
 
-KEIN_MASTFUTTER = (
+KEIN_MASTFUTTER = befund(
     "Für Masthühner liegt kein Futterblatt vor — nur das Prophylaxe-Programm. "
-    "Der Taktgeber plant für diese Linie deshalb keine Mischung."
+    "Der Taktgeber plant für diese Linie deshalb keine Mischung.",
+    "Pour les poulets de chair, aucune fiche d'alimentation n'existe — seulement "
+    "le programme de prophylaxie. Le cadenceur ne prévoit donc aucun mélange "
+    "pour cette ligne.",
 )
 
 

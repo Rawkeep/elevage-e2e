@@ -42,7 +42,7 @@ def test_die_letzte_mischung_ist_noch_im_trog():
     """Sie hat kein Ende — gezählt, nicht als Verbrauch verbucht."""
     kurve, issues = aus_mischungen(Tierart.LEGEHENNE, 1000, EINSTALL, [(date(2026, 3, 9), 140.0)])
     assert kurve.punkte == []
-    assert any("nicht in die Kurve eingerechnet" in i for i in issues)
+    assert any("nicht in die Kurve eingerechnet" in i.text for i in issues)
 
 
 def test_zu_kurzer_abstand_und_unplausibles_fliegen_raus():
@@ -58,13 +58,13 @@ def test_zu_kurzer_abstand_und_unplausibles_fliegen_raus():
         ],
     )
     assert [p.woche for p in kurve.punkte] == [2]
-    assert any("nicht in die Kurve" in i for i in issues)
+    assert any("nicht in die Kurve" in i.text for i in issues)
 
 
 def test_tierzahl_null_liefert_keine_erfundene_kurve():
     kurve, issues = aus_mischungen(Tierart.LEGEHENNE, 0, EINSTALL, [])
     assert kurve.punkte == []
-    assert any("Tierzahl 0" in i for i in issues)
+    assert any("Tierzahl 0" in i.text for i in issues)
 
 
 def test_gemessen_schlaegt_richtwert_nur_in_seiner_woche():
@@ -90,7 +90,7 @@ def test_die_kurve_haelt_zwischen_den_stuetzstellen():
 def test_prognose_sagt_worauf_sie_steht():
     p = prognose(herde(), date(2026, 3, 20), 3, richtwert(Tierart.LEGEHENNE))
     assert p.quelle is Quelle.RICHTWERT
-    assert any("Richtwerten" in i for i in p.issues)
+    assert any("Richtwerten" in i.text for i in p.issues)
     assert p.bedarf_je_tag_kg == 27.0  # 27 g × 1000 Tiere
     assert p.bedarf_bis_horizont_kg == 378.0  # × 14 Tage
 
@@ -103,10 +103,10 @@ def test_reichweite_und_bestelltag():
 
 def test_angebrochener_vorlauf_wird_gemeldet():
     p = prognose(herde(), date(2026, 3, 20), 3, richtwert(Tierart.LEGEHENNE), vorrat_kg=54.0)
-    assert any("Bestellvorlauf" in i for i in p.issues)
+    assert any("Bestellvorlauf" in i.text for i in p.issues)
 
 
 def test_ohne_punkt_gibt_es_keine_zahl_sondern_einen_befund():
     p = prognose(herde(), date(2026, 3, 3), 0, richtwert(Tierart.LEGEHENNE))
     assert p.bedarf_je_tag_kg is None
-    assert any("Keine Verzehrzahl" in i for i in p.issues)
+    assert any("Keine Verzehrzahl" in i.text for i in p.issues)

@@ -138,7 +138,7 @@ def zeige_tagesbild(bild: Tagesbild) -> None:
     if bild.issues:
         print("\nBEFUNDE (gemeldet, nicht stillschweigend repariert)")
         for i in bild.issues:
-            print(f"  · {i}")
+            print(f"  · {i.text}")
 
     if bild.tierarzt:
         kontakt = " · ".join(x for x in (bild.tierarzt.telefon, bild.tierarzt.email) if x)
@@ -167,7 +167,7 @@ def zeige_programm(blatt: Programm) -> None:
     if blatt.hinweise:
         print("\nMERKSÄTZE DES BLATTES")
         for h in blatt.hinweise:
-            print(f"  · {h}")
+            print(f"  · {h.text}")
 
 
 def zeige_vergleich(v: Programmvergleich) -> None:
@@ -184,7 +184,7 @@ def zeige_vergleich(v: Programmvergleich) -> None:
     if v.issues:
         print("\nBEFUNDE (gemeldet, nicht stillschweigend geglättet)")
         for i in v.issues:
-            print(f"  · {i}")
+            print(f"  · {i.text}")
     print("\nWelches Blatt gilt, entscheidet der Betrieb — mit 'elevage programm --herde X")
     print("--waehlen KENNUNG' wird die Wahl je Herde gesetzt.")
 
@@ -211,7 +211,7 @@ def zeige_mischauftrag(auftrag: Mischauftrag) -> None:
     print(f"  {auftrag.ist_einwaage_kg:9.2f} kg  Ist-Einwaage")
     print(f"  Freigabe: {'JA' if auftrag.freigegeben else 'NEIN'}")
     for i in auftrag.issues:
-        print(f"  · {i}")
+        print(f"  · {i.text}")
 
 
 def _bauplan(p: argparse.ArgumentParser) -> None:
@@ -758,7 +758,7 @@ def main(argv: list[str] | None = None) -> int:
                     f"  {marke}  {punkt.basis or ''}"
                 )
             for i in issues:
-                print(f"  · {i}")
+                print(f"  · {i.text}")
             return 0
 
         gewaehlt = archiv.lade_herde(conn, a.betrieb, a.herde)

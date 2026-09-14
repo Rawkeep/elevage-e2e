@@ -14,9 +14,10 @@ from elevage import archiv
 from elevage.anpassung import wirksames_rezept
 from elevage.bestand import mittlere_tierzahl
 from elevage.einstellung import ausgleichsart
-from elevage.mischung import baue_mischauftrag, vermerk_text
+from elevage.mischung import baue_mischauftrag, vermerk_text, vermerk_text_fr
 from elevage.models import (
     Ausgleichsart,
+    Befund,
     Herde,
     Mischauftrag,
     Pruefvermerk,
@@ -24,6 +25,7 @@ from elevage.models import (
     Rezeptanpassung,
     Tagesbild,
     Verzehrkurve,
+    befund,
 )
 from elevage.programme import programm_konflikt
 from elevage.rezepte import rezept_nach_key
@@ -44,7 +46,7 @@ def _herde(conn: sqlite3.Connection, tenant_id: str, herde_id: str) -> Herde:
 
 def verzehrkurve(
     conn: sqlite3.Connection, tenant_id: str, herde_id: str
-) -> tuple[Verzehrkurve, list[str]]:
+) -> tuple[Verzehrkurve, list[Befund]]:
     """Die Kurve dieses Betriebs: gemessen wo möglich, Richtwert wo nötig."""
     herde = _herde(conn, tenant_id, herde_id)
     mischungen = archiv.mischungen_fuer(conn, tenant_id, herde_id)
@@ -58,8 +60,13 @@ def verzehrkurve(
     )
     if not gemessen.punkte:
         issues.append(
-            "Noch keine protokollierte Mischung — die Kurve steht komplett auf "
-            "Richtwerten. Mit 'elevage gemischt' schärft sie sich von selbst."
+            befund(
+                "Noch keine protokollierte Mischung — die Kurve steht komplett auf "
+                "Richtwerten. Mit 'elevage gemischt' schärft sie sich von selbst.",
+                "Aucun mélange enregistré pour l'instant — la courbe repose "
+                "entièrement sur des valeurs indicatives. Avec 'elevage gemischt' "
+                "elle s'affine d'elle-même.",
+            )
         )
     return kombiniere(gemessen, richtwert(herde.tierart)), issues
 
@@ -142,6 +149,7 @@ def _lege_ausgleichsvermerk_an(
             vermerk_id=f"{VERMERK_AUSGLEICH}:{rezept.key}",
             betrifft=f"Rezept {rezept.key}",
             text=vermerk_text(rezept, auftrag.ausgleich_posten, alt, neu),
+            text_fr=vermerk_text_fr(rezept, auftrag.ausgleich_posten, alt, neu),
             angelegt_am=am,
         ),
     )
@@ -161,6 +169,7 @@ def passe_rezept_an(
     vorher = next((p.kg_je_100 for p in basis.posten if p.artikel_id == anpassung.artikel_id), None)
     archiv.setze_anpassung(conn, anpassung)
     war = f"{vorher:.2f}" if vorher is not None else "nicht im Blatt"
+    war_fr = f"{vorher:.2f}" if vorher is not None else "absent de la fiche"
     archiv.lege_vermerk_an(
         conn,
         Pruefvermerk(
@@ -172,6 +181,13 @@ def passe_rezept_an(
                 f"{anpassung.kg_je_100:.2f} kg je 100 kg (Blatt: {war}). "
                 + (f"Grund: {anpassung.grund}. " if anpassung.grund else "")
                 + "Bitte gegenlesen."
+            ),
+            text_fr=(
+                f"{anpassung.artikel_id} est désormais à "
+                f"{anpassung.kg_je_100:.2f} kg pour 100 kg dans "
+                f"« {basis.name_fr or basis.name} » (fiche : {war_fr}). "
+                + (f"Motif : {anpassung.grund}. " if anpassung.grund else "")
+                + "À relire."
             ),
             angelegt_am=anpassung.geaendert_am,
         ),

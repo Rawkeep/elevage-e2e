@@ -33,7 +33,9 @@ def test_kein_build_noetig():
 
 
 def test_grundgeruest_stimmt():
-    assert '<html lang="de">' in SEITE
+    # Französisch ist die Vorgabe; der Umschalter setzt lang zur Laufzeit um.
+    assert '<html lang="fr">' in SEITE
+    assert "document.documentElement.lang = SPRACHE;" in SEITE
     assert 'name="viewport"' in SEITE
     assert SEITE.count("<h1") == 1
     assert "<title>" in SEITE

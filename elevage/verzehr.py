@@ -21,12 +21,14 @@ from collections.abc import Callable
 from datetime import date, timedelta
 
 from elevage.models import (
+    Befund,
     Futterprognose,
     Herde,
     KurvePunkt,
     Quelle,
     Tierart,
     Verzehrkurve,
+    befund,
 )
 
 PROGNOSE_HORIZONT_TAGE = 14
@@ -77,9 +79,11 @@ RICHTWERT_MASTHUHN = Verzehrkurve(
     punkte=_punkte({1: 20.0, 2: 40.0, 3: 65.0, 4: 95.0, 5: 120.0, 6: 140.0}),
 )
 
-RICHTWERT_HINWEIS = (
+RICHTWERT_HINWEIS = befund(
     "Diese Prognose steht auf Richtwerten, nicht auf Zahlen dieses Betriebs. "
-    "Sie schärft sich mit jeder protokollierten Mischung von selbst."
+    "Sie schärft sich mit jeder protokollierten Mischung von selbst.",
+    "Cette prévision repose sur des valeurs indicatives, pas sur les chiffres de "
+    "cette exploitation. Elle s'affine d'elle-même à chaque mélange enregistré.",
 )
 
 
@@ -93,7 +97,7 @@ def aus_mischungen(
     einstalldatum: date,
     mischungen: list[tuple[date, float]],
     tierzahl_im_zeitraum: Callable[[date, date], float] | None = None,
-) -> tuple[Verzehrkurve, list[str]]:
+) -> tuple[Verzehrkurve, list[Befund]]:
     """Verbrauch zwischen zwei Mischungen ⇒ gemessene Kurve.
 
     `mischungen` sind (Datum, Ist-Einwaage in kg). Die Annahme dahinter ist
@@ -101,9 +105,14 @@ def aus_mischungen(
     gefressen. Die **letzte** Mischung hat kein Ende und wird deshalb
     übersprungen — gezählt, nicht als Null verbucht.
     """
-    issues: list[str] = []
+    issues: list[Befund] = []
     if tierzahl <= 0:
-        return Verzehrkurve(tierart=tierart), ["Tierzahl 0 — keine Messung möglich."]
+        return Verzehrkurve(tierart=tierart), [
+            befund(
+                "Tierzahl 0 — keine Messung möglich.",
+                "Effectif nul — aucune mesure possible.",
+            )
+        ]
 
     sortiert = sorted(mischungen)
     je_woche: dict[int, list[tuple[float, str]]] = {}
@@ -147,8 +156,12 @@ def aus_mischungen(
 
     if uebersprungen:
         issues.append(
-            f"{uebersprungen} Mischung(en) nicht in die Kurve eingerechnet "
-            "(letzte Mischung noch im Trog, zu kurzer Abstand oder unplausibel)."
+            befund(
+                f"{uebersprungen} Mischung(en) nicht in die Kurve eingerechnet "
+                "(letzte Mischung noch im Trog, zu kurzer Abstand oder unplausibel).",
+                f"{uebersprungen} mélange(s) non intégré(s) à la courbe (dernier "
+                "mélange encore à l'auge, intervalle trop court ou invraisemblable).",
+            )
         )
     return Verzehrkurve(tierart=tierart, punkte=punkte), issues
 
@@ -172,7 +185,7 @@ def prognose(
     tierzahl: int | None = None,
     vorrat_kg: float | None = None,
     horizont_tage: int = PROGNOSE_HORIZONT_TAGE,
-    zusatz_issues: list[str] | None = None,
+    zusatz_issues: list[Befund] | None = None,
 ) -> Futterprognose:
     """Tagesbedarf, Reichweite und Bestelltag — mit Herkunft an jeder Zahl."""
     issues = list(zusatz_issues or [])
@@ -180,8 +193,12 @@ def prognose(
 
     if punkt is None:
         issues.append(
-            f"Keine Verzehrzahl für Woche {woche} — weder gemessen noch als Richtwert. "
-            "Ohne sie gibt es keine Reichweite und keinen Bestelltag."
+            befund(
+                f"Keine Verzehrzahl für Woche {woche} — weder gemessen noch als "
+                "Richtwert. Ohne sie gibt es keine Reichweite und keinen Bestelltag.",
+                f"Aucune valeur de consommation pour la semaine {woche} — ni mesurée "
+                "ni indicative. Sans elle, pas d'autonomie ni de jour de commande.",
+            )
         )
         return Futterprognose(
             herde_id=herde.herde_id,
@@ -203,16 +220,25 @@ def prognose(
     bestellen_ab: date | None = None
     if vorrat_kg is not None:
         if je_tag <= 0:
-            issues.append("Tagesbedarf 0 — Reichweite nicht berechenbar.")
+            issues.append(
+                befund(
+                    "Tagesbedarf 0 — Reichweite nicht berechenbar.",
+                    "Besoin journalier nul — autonomie incalculable.",
+                )
+            )
         else:
             tage = int(vorrat_kg / je_tag)
             reicht_bis = stichtag + timedelta(days=tage)
             bestellen_ab = reicht_bis - timedelta(days=FUTTER_VORLAUF_TAGE)
             if bestellen_ab <= stichtag:
                 issues.append(
-                    f"Vorrat reicht nur bis {reicht_bis:%d.%m.} — "
-                    f"Bestellvorlauf von {FUTTER_VORLAUF_TAGE} Tagen ist bereits "
-                    "angebrochen."
+                    befund(
+                        f"Vorrat reicht nur bis {reicht_bis:%d.%m.} — "
+                        f"Bestellvorlauf von {FUTTER_VORLAUF_TAGE} Tagen ist bereits "
+                        "angebrochen.",
+                        f"Le stock ne tient que jusqu'au {reicht_bis:%d.%m.} — le délai "
+                        f"de commande de {FUTTER_VORLAUF_TAGE} jours est déjà entamé.",
+                    )
                 )
 
     return Futterprognose(

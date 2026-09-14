@@ -98,6 +98,41 @@ class Ampel(str, Enum):
     GRUEN = "GRUEN"
 
 
+class Satz(_Basis):
+    """Ein Satz in beiden Sprachen — Deutsch im Code, Französisch daneben."""
+
+    text: str
+    text_fr: str | None = None
+
+
+def satz(de: str, fr: str) -> Satz:
+    """Kurzform für einen Merksatz des Blattes."""
+    return Satz(text=de, text_fr=fr)
+
+
+class Befund(Satz):
+    """Ein Satz, der auf einen Widerspruch zeigt.
+
+    Eigener Name, weil er etwas anderes meint als ein Merksatz: hier
+    stimmt etwas nicht, und jemand muss nachsehen.
+
+    Früher war das ein blanker String, und die französische Ansicht zeigte
+    deutsche Sätze — bei einem Werkzeug, dessen Blätter französisch sind
+    und dessen Stall französisch spricht, ist das der falsche Weg herum.
+
+    Ein Wörterbuch hilft hier nicht: die meisten Befunde tragen Zahlen
+    („46,50 → 45,40 kg“), und ein Musterabgleich auf zusammengesetzte
+    Sätze wäre genau die Sorte Magie, die dieses Haus vermeidet. Also
+    schreibt die Stelle, die den Befund erzeugt, beide Fassungen — sie ist
+    die einzige, die weiß, was sie sagen will.
+    """
+
+
+def befund(de: str, fr: str) -> Befund:
+    """Kurzform, damit die erzeugende Stelle lesbar bleibt."""
+    return Befund(text=de, text_fr=fr)
+
+
 class Schritt(_Basis):
     """Vorlage aus dem Programm — gilt für alle Herden einer Tierart.
 
@@ -128,7 +163,7 @@ class Schritt(_Basis):
         description="Dosierung wörtlich vom Blatt, z. B. '1 g/l' oder '2 ml/l'",
     )
     quelle: str = "IVOGRAIN"
-    issues: list[str] = Field(default_factory=list)
+    issues: list[Befund] = Field(default_factory=list)
 
 
 class Rolle(str, Enum):
@@ -260,7 +295,7 @@ class Programm(_Basis):
     herausgeber: str | None = Field(default=None, description="Praxis, Person, Kontakt")
     schritte: list[Schritt] = Field(default_factory=list)
     dauerregeln: list[Dauerregel] = Field(default_factory=list)
-    hinweise: list[str] = Field(
+    hinweise: list[Satz] = Field(
         default_factory=list, description="Merksätze des Blattes — keine Termine"
     )
     vorgabe: bool = Field(default=False, description="Vorgabe für diese Tierart")
@@ -291,7 +326,7 @@ class Programmvergleich(_Basis):
     zeilen: list[Programmunterschied] = Field(default_factory=list)
     nur_links: list[str] = Field(default_factory=list)
     nur_rechts: list[str] = Field(default_factory=list)
-    issues: list[str] = Field(default_factory=list)
+    issues: list[Befund] = Field(default_factory=list)
 
 
 class Tierarzt(_Basis):
@@ -342,7 +377,7 @@ class Bestand(_Basis):
     zugang_gesamt: int
     tierzahl: int
     verluste_prozent: float
-    issues: list[str] = Field(default_factory=list)
+    issues: list[Befund] = Field(default_factory=list)
 
 
 class Praeparat(_Basis):
@@ -429,7 +464,7 @@ class Futterprognose(_Basis):
     vorrat_kg: float | None = None
     reicht_bis: date | None = None
     bestellen_ab: date | None = None
-    issues: list[str] = Field(default_factory=list)
+    issues: list[Befund] = Field(default_factory=list)
 
 
 class Posten(_Basis):
@@ -475,6 +510,7 @@ class Pruefvermerk(_Basis):
     vermerk_id: str
     betrifft: str
     text: str
+    text_fr: str | None = None
     angelegt_am: date
     erledigt_am: date | None = None
     erledigt_durch: str | None = None
@@ -498,7 +534,7 @@ class Mischauftrag(_Basis):
     summe_je_100: float
     abweichung_je_100: float
     freigegeben: bool
-    issues: list[str] = Field(default_factory=list)
+    issues: list[Befund] = Field(default_factory=list)
 
 
 class Tagesbild(_Basis):
@@ -528,4 +564,4 @@ class Tagesbild(_Basis):
     tierarzt: Tierarzt | None = None
     bestand: Bestand | None = None
     ampel: Ampel = Ampel.GRUEN
-    issues: list[str] = Field(default_factory=list)
+    issues: list[Befund] = Field(default_factory=list)

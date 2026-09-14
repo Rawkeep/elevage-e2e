@@ -34,7 +34,7 @@ def test_verbatim_trifft_die_spalten_der_blaetter(rezept, menge, erwartet):
 def test_verbatim_sagt_was_wirklich_in_den_mischer_geht():
     auftrag = baue_mischauftrag(REZEPT_PONTE, 1000, art=VERBATIM)
     assert auftrag.ist_einwaage_kg == 1067.0
-    assert any("1067.00 kg in den Mischer" in i for i in auftrag.issues)
+    assert any("1067.00 kg in den Mischer" in i.text for i in auftrag.issues)
 
 
 def test_ausgleich_nimmt_den_ueberhang_aus_dem_energietraeger():
@@ -52,9 +52,9 @@ def test_ausgleich_nimmt_den_ueberhang_aus_dem_energietraeger():
 
 def test_ausgleich_ist_die_vorgabe_und_meldet_sich():
     auftrag = baue_mischauftrag(REZEPT_PONTE, 1000)
-    assert any("summiert auf 106.70" in i for i in auftrag.issues)
-    assert any("Ausgeglichen über MAIS" in i for i in auftrag.issues)
-    assert any("Prüfvermerk" in i for i in auftrag.issues)
+    assert any("summiert auf 106.70" in i.text for i in auftrag.issues)
+    assert any("Ausgeglichen über MAIS" in i.text for i in auftrag.issues)
+    assert any("Prüfvermerk" in i.text for i in auftrag.issues)
 
 
 def test_anteilig_trifft_die_menge_aendert_aber_jeden_anteil():
@@ -62,7 +62,7 @@ def test_anteilig_trifft_die_menge_aendert_aber_jeden_anteil():
     nach_artikel = {z.artikel_id: z.kg for z in auftrag.zeilen}
     assert auftrag.ist_einwaage_kg == pytest.approx(1000.0, abs=0.05)
     assert nach_artikel["COQUILLE"] < 80.0  # auch der Kalk sinkt
-    assert any("auch Wirkstoffe und Kalk" in i for i in auftrag.issues)
+    assert any("auch Wirkstoffe und Kalk" in i.text for i in auftrag.issues)
 
 
 def test_kleine_abweichung_wird_genauso_ausgeglichen():
@@ -86,7 +86,7 @@ def test_zu_grosser_ueberhang_haelt_den_auftrag_an():
     )
     auftrag = baue_mischauftrag(kaputt, 1000)
     assert auftrag.freigegeben is False
-    assert any("GESPERRT" in i for i in auftrag.issues)
+    assert any("GESPERRT" in i.text for i in auftrag.issues)
 
 
 def test_ueberhang_groesser_als_der_ausgleichsposten_wird_nicht_verbogen():
@@ -105,7 +105,7 @@ def test_ueberhang_groesser_als_der_ausgleichsposten_wird_nicht_verbogen():
     assert schmal.summe_je_100 == 105.0
     auftrag = baue_mischauftrag(schmal, 1000)
     assert auftrag.freigegeben is False
-    assert any("größer als der Ausgleichsposten" in i for i in auftrag.issues)
+    assert any("größer als der Ausgleichsposten" in i.text for i in auftrag.issues)
 
 
 def test_sauberes_rezept_braucht_keinen_ausgleich():

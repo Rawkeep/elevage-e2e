@@ -83,13 +83,13 @@ def test_masthuhn_bekommt_keinen_mischauftrag_und_sagt_warum():
     bild = rechne(herde(Tierart.MASTHUHN), EINSTALL + timedelta(days=10))
     assert bild.phase is None
     assert mischauftrag_fuer(bild, 500) is None
-    assert any("kein Futterblatt" in i for i in bild.issues)
+    assert any("kein Futterblatt" in i.text for i in bild.issues)
 
 
 def test_widersprueche_der_blaetter_erreichen_das_tagesbild():
     """Ein Befund, der im Programm steckt, darf nicht im Modul versanden."""
     bild = rechne(herde(), EINSTALL + timedelta(days=10))
-    text = " ".join(bild.issues)
+    text = " ".join(i.text for i in bild.issues)
     assert "GUMBORO" in text  # doppelte Zählung J12/J17
     assert "Tag 57-60" in text  # Zeile steht in Woche 7, datiert auf 57-60
     assert "Richtwerten" in text  # die Prognose sagt, worauf sie steht

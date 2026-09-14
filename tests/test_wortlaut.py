@@ -124,3 +124,89 @@ def test_der_widerspruch_bleibt_im_wortlaut_stehen():
     dritter = next(s for s in blatt.schritte if s.key == "PONDEUSE_J17_GUMBORO_3")
     assert dritter.titel_fr is not None and dritter.titel_fr.startswith("2ème")
     assert dritter.titel.startswith("3.")
+
+
+# --- Befunde: sie erklären, warum etwas nicht stimmt ---------------------
+
+
+def _alle_befunde():
+    """Ein Tagesbild, das möglichst viele Befunde auslöst."""
+    from elevage.models import Bestandsbewegung, Ereignis, EreignisArt
+    from elevage.takt import rechne
+
+    herde = _herde("VETO_PONDEUSE")
+    ereignis = Ereignis(
+        tenant_id="t",
+        herde_id="H1",
+        ereignis_id="V1",
+        art=EreignisArt.GUMBORO,
+        festgestellt_am=date(2026, 3, 1),
+    )
+    bewegung = Bestandsbewegung(
+        tenant_id="t", herde_id="H1", bewegung_id="B1", am=date(2026, 2, 1), abgang=60
+    )
+    bild = rechne(herde, date(2026, 3, 10), [], [ereignis], vorrat_kg=5.0, bewegungen=[bewegung])
+    return bild.issues
+
+
+def test_jeder_befund_eines_tagesbilds_spricht_beide_sprachen():
+    """Ein Befund erklärt, warum etwas nicht stimmt. Wer ihn nicht lesen
+    kann, kann nichts damit anfangen — und die Vorgabe ist Französisch."""
+    befunde = _alle_befunde()
+    assert len(befunde) >= 6
+    fehlt = [b.text[:60] for b in befunde if not b.text_fr]
+    assert not fehlt, f"ohne französische Fassung: {fehlt}"
+
+
+def test_ein_befund_ist_nicht_zweimal_derselbe_satz():
+    for b in _alle_befunde():
+        assert b.text_fr != b.text, b.text[:60]
+
+
+def test_auch_die_befunde_des_mischauftrags():
+    from elevage.mischung import baue_mischauftrag
+    from elevage.models import Ausgleichsart
+    from elevage.rezepte import REZEPTE
+
+    for rezept in REZEPTE:
+        for art in Ausgleichsart:
+            auftrag = baue_mischauftrag(rezept, 1000, art=art)
+            for b in auftrag.issues:
+                assert b.text_fr, (rezept.key, art, b.text[:50])
+
+
+def test_auch_die_befunde_der_gegenueberstellung():
+    from elevage.models import Tierart
+    from elevage.vergleich import vergleiche_ids
+
+    v = vergleiche_ids(Tierart.LEGEHENNE, "IVOGRAIN_PONDEUSE", "VETO_PONDEUSE")
+    assert v.issues
+    for b in v.issues:
+        assert b.text_fr and b.text_fr != b.text
+
+
+def test_jeder_merksatz_der_blaetter_steht_im_original():
+    """Die NB-Kästen sind französisch geschrieben — hier steht ihr Wortlaut."""
+    for blatt in PROGRAMME:
+        assert blatt.hinweise, blatt.programm_id
+        for h in blatt.hinweise:
+            assert h.text_fr, (blatt.programm_id, h.text[:50])
+
+
+def test_die_drei_blaetter_haben_verschiedene_merksaetze():
+    """Sie teilten sich einen — dabei hat jedes Blatt seinen eigenen NB-Kasten."""
+    saetze = {b.programm_id: tuple(h.text for h in b.hinweise) for b in PROGRAMME}
+    assert len(set(saetze.values())) == 3, saetze.keys()
+
+
+def test_der_pruefvermerk_wird_zweisprachig_angelegt():
+    """Er wird gespeichert, nicht gerechnet — beide Fassungen entstehen,
+    wenn er entsteht."""
+    from elevage.mischung import vermerk_text, vermerk_text_fr
+    from elevage.rezepte import REZEPT_PONTE
+
+    de = vermerk_text(REZEPT_PONTE, "MAIS", 46.5, 45.4)
+    fr = vermerk_text_fr(REZEPT_PONTE, "MAIS", 46.5, 45.4)
+    assert de != fr
+    assert "100 kg" in de and "100 kg" in fr
+    assert "Mais" in de and "Mais" in fr  # Rohstoffnamen bleiben, wie sie sind

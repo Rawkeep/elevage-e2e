@@ -4,11 +4,15 @@ Das Briefing nannte FR/EN-Zweisprachigkeit für Westafrika ausdrücklich —
 und die Quellblätter sind ohnehin französisch. Wer im Stall abhakt, soll
 nicht erst Deutsch lernen müssen.
 
-Drei Entscheidungen:
+Vier Entscheidungen:
 
-* **Nur die Oberfläche wird übersetzt, nicht die Daten.** Präparatnamen,
-  Rezeptposten und Befunde bleiben, wie sie sind. Ein Befund, der in der
-  Übersetzung eine Nuance verliert, ist schlimmer als einer auf Deutsch.
+* **Französisch ist die Vorgabe.** Die Blätter sind französisch, der Stall
+  ist es auch — Deutsch wäre die Sprache des Werkzeugbauers, nicht die der
+  Arbeit. Deutsch bleibt wählbar und bleibt die Sprache des Quelltextes.
+* **Nur die Oberfläche wird übersetzt, nicht die Daten.** Präparatnamen und
+  Rezeptposten bleiben, wie sie sind. Die **Befunde** dagegen tragen seit
+  `models.Befund` beide Fassungen: sie erklären, warum etwas nicht stimmt,
+  und wer sie nicht lesen kann, kann nichts damit anfangen.
 * **Fehlt eine Vokabel, steht der deutsche Text da** — nicht ein leeres
   Feld und kein Schlüsselname.
 * **Die Wahl lebt im Browser** (`localStorage`), nicht in der Datenbank:
@@ -20,7 +24,10 @@ from __future__ import annotations
 import json
 
 SPRACHEN = ("de", "fr")
-VORGABE = "de"
+VORGABE = "fr"
+"""Französisch, nicht Deutsch: das Werkzeug steht in einem Betrieb, der
+französisch arbeitet. Deutsch bleibt die Sprache im Quelltext — und die,
+auf die zurückgefallen wird, wenn eine Vokabel fehlt."""
 
 FRANZOESISCH: dict[str, str] = {
     # Kopf und Bedienung
@@ -69,6 +76,12 @@ FRANZOESISCH: dict[str, str] = {
     "Ruhe": "Repos",
     "Merksätze des Blattes": "Consignes du programme",
     "Tierarzt": "Vétérinaire",
+    # Das Band der öffentlichen Demo — sonst bliebe es als Einziges deutsch.
+    "Demo mit erfundenen Betriebsdaten": "Démonstration avec des données inventées",
+    "Eingaben bleiben im Browser, es wird nichts gespeichert.": (
+        "Les saisies restent dans le navigateur, rien n'est enregistré."
+    ),
+    "Quelltext": "Code source",
     "Dosis": "Dosage",
     "Gegenüberstellung": "Comparaison",
     "Gegenüberstellen": "Comparer",

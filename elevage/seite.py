@@ -104,12 +104,14 @@ Ohne dieses Zeichen fragt jeder Browser /favicon.ico an und bekommt 404."""
 
 
 UEBERSETZER = """
-// Nur die Oberfläche wird übersetzt, nicht die Daten: Präparatnamen,
-// Rezeptposten und Befunde bleiben, wie sie sind. Ein Befund, der in der
-// Übersetzung eine Nuance verliert, ist schlimmer als einer auf Deutsch.
+// Nur die Oberfläche wird über dieses Wörterbuch übersetzt. Präparatnamen
+// und Rezeptposten bleiben, wie sie sind; Schritte und Befunde tragen ihre
+// zweite Fassung am Datensatz (titelFr, hinweisFr, textFr) — dafür ist
+// `wortlaut()` da, nicht dieses Wörterbuch.
 const WOERTER = WOERTERBUCH_HIER;
-let SPRACHE = "de";
-try { SPRACHE = localStorage.getItem("taktgeber-sprache") || "de"; } catch (f) {}
+// Französisch ist die Vorgabe: die Blätter sind französisch, der Stall auch.
+let SPRACHE = "fr";
+try { SPRACHE = localStorage.getItem("taktgeber-sprache") || "fr"; } catch (f) {}
 
 function txt(text) {
   // Heißt NICHT t(): so heißt in diesem Skript überall der Termin, und ein
@@ -123,6 +125,9 @@ function txt(text) {
 const UNBERUEHRT = ["CODE", "PRE", "SAMP", "KBD", "SCRIPT", "STYLE"];
 
 function uebersetzeSeite() {
+  // Die Sprachkennung gehört ans Dokument, bevor irgendetwas abbricht —
+  // Vorleser und Rechtschreibprüfung lesen sie.
+  document.documentElement.lang = SPRACHE;
   if (SPRACHE === "de") return;
   const lauf = document.createTreeWalker(document.body, NodeFilter.SHOW_TEXT);
   const knoten = [];
@@ -399,6 +404,11 @@ summary::before {
 }
 details[open] > summary::before { transform: rotate(45deg); }
 summary:hover { color: var(--text); }
+/* Die Zahl steht in einem eigenen Knoten: der Übersetzungslauf schlägt
+   ganze Textknoten nach, und „Befunde (8)“ steht in keinem Wörterbuch. */
+.anzahl { font-variant-numeric: tabular-nums; opacity: .75; }
+.anzahl:not(:empty)::before { content: "("; }
+.anzahl:not(:empty)::after { content: ")"; }
 details > :not(summary) { margin-top: 10px; }
 
 .breit { overflow-x: auto; }
@@ -433,7 +443,7 @@ body:not([data-rolle="LEITUNG"]) #programmwechsel { display: none; }
 """
 
 _KOPF = """<!doctype html>
-<html lang="de">
+<html lang="fr">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
@@ -538,9 +548,12 @@ _SEITE_MARKUP = """
        bevor der Tag kommt.</p>
     <ul></ul>
   </div>
-  <div class="block" id="block-demnaechst" hidden><h3>Demnächst</h3><ul></ul></div>
+  <details class="block" id="block-demnaechst" hidden>
+    <summary><span>Demnächst</span><span class="anzahl"></span></summary>
+    <ul></ul>
+  </details>
   <details class="block" id="block-erledigt" hidden>
-    <summary>Zuletzt erledigt</summary>
+    <summary><span>Zuletzt erledigt</span><span class="anzahl"></span></summary>
     <ul></ul>
   </details>
 </section>
@@ -631,10 +644,10 @@ _SEITE_MARKUP = """
        Original nachsieht.</p>
     <ul id="vermerke"></ul>
   </div>
-  <div class="block" id="block-befunde" hidden>
-    <h3>Befunde</h3>
+  <details class="block" id="block-befunde" hidden>
+    <summary><span>Befunde</span><span class="anzahl"></span></summary>
     <div id="befunde"></div>
-  </div>
+  </details>
 </section>
 
 </div>
@@ -833,12 +846,20 @@ function karten() {
   });
 }
 
+function zaehle(block, anzahl) {
+  // Zugeklappt muss man sehen, wie viel drunter liegt — sonst klappt es
+  // niemand auf, und ein Befund, den niemand liest, ist keiner.
+  const marke = block.querySelector(".anzahl");
+  if (marke) marke.textContent = String(anzahl);
+}
+
 function fuelle(id, liste, mitKnopf) {
   const block = $(id);
   const ul = block.querySelector("ul");
   ul.replaceChildren();
   liste.forEach((t) => ul.appendChild(postenZeile(t, mitKnopf)));
   block.hidden = liste.length === 0;
+  zaehle(block, liste.length);
 }
 
 async function ladeHerden() {
@@ -952,7 +973,7 @@ function zeige() {
     const li = document.createElement("li");
     li.className = "befund";
     li.style.listStyle = "none";
-    li.textContent = h;
+    li.textContent = wortlaut(h, "text");
     merk.appendChild(li);
   });
   $("merksaetze").hidden = !(blatt && blatt.hinweise && blatt.hinweise.length);
@@ -993,7 +1014,7 @@ function zeige() {
     kopf.textContent = "\\u203a " + v.betrifft;
     const text = document.createElement("div");
     text.className = "mittel";
-    text.textContent = v.text;
+    text.textContent = wortlaut(v, "text");
     links.append(kopf, text);
     const knopf = document.createElement("button");
     knopf.className = "tat";
@@ -1011,10 +1032,11 @@ function zeige() {
   bild.issues.forEach((i) => {
     const p = document.createElement("p");
     p.className = "befund";
-    p.textContent = i;
+    p.textContent = wortlaut(i, "text");
     kasten.appendChild(p);
   });
   $("block-befunde").hidden = bild.issues.length === 0;
+  zaehle($("block-befunde"), bild.issues.length);
   karten();
   uebersetzeSeite();
 }
@@ -1126,7 +1148,9 @@ async function rechne(buchen) {
     summe.style.fontWeight = "700";
     ziel.appendChild(tabelle);
     a.auftrag.issues.forEach((i) => {
-      const p = document.createElement("p"); p.className = "befund"; p.textContent = i;
+      const p = document.createElement("p");
+      p.className = "befund";
+      p.textContent = wortlaut(i, "text");
       ziel.appendChild(p);
     });
     $("buchen").hidden = !a.auftrag.freigegeben || a.auftrag.ausgleich === "VERBATIM";
@@ -1217,7 +1241,7 @@ function zeigeVergleich(v) {
   (v.issues || []).forEach((i) => {
     const p = document.createElement("p");
     p.className = "befund";
-    p.textContent = i;
+    p.textContent = wortlaut(i, "text");
     ziel.appendChild(p);
   });
   const schluss = document.createElement("p");

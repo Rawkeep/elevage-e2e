@@ -219,6 +219,16 @@ MIGRATIONEN: list[tuple[int, str]] = [
         );
         """,
     ),
+    (
+        9,
+        """
+        -- Der französische Wortlaut des Prüfvermerks. Ein Vermerk wird
+        -- gespeichert, nicht gerechnet — beide Fassungen entstehen beim
+        -- Anlegen. Ältere Vermerke haben NULL und bleiben deutsch; das ist
+        -- dieselbe Rückfallregel wie überall sonst.
+        ALTER TABLE pruefvermerk ADD COLUMN text_fr TEXT;
+        """,
+    ),
 ]
 
 
@@ -446,7 +456,10 @@ def protokolliere_mischung(
                 [{"artikelId": z.artikel_id, "kg": z.kg} for z in auftrag.zeilen],  # type: ignore[attr-defined]
                 ensure_ascii=False,
             ),
-            json.dumps(auftrag.issues, ensure_ascii=False),  # type: ignore[attr-defined]
+            json.dumps(
+                [i.model_dump(by_alias=True, mode="json") for i in auftrag.issues],  # type: ignore[attr-defined]
+                ensure_ascii=False,
+            ),
         ),
     )
     conn.commit()
@@ -569,12 +582,13 @@ def lege_vermerk_an(conn: sqlite3.Connection, vermerk: Pruefvermerk) -> bool:
     """
     cur = conn.execute(
         "INSERT OR IGNORE INTO pruefvermerk (tenant_id, vermerk_id, betrifft, text,"
-        " angelegt_am) VALUES (?, ?, ?, ?, ?)",
+        " text_fr, angelegt_am) VALUES (?, ?, ?, ?, ?, ?)",
         (
             vermerk.tenant_id,
             vermerk.vermerk_id,
             vermerk.betrifft,
             vermerk.text,
+            vermerk.text_fr,
             vermerk.angelegt_am.isoformat(),
         ),
     )
@@ -607,6 +621,7 @@ def vermerke_fuer(
             vermerk_id=z["vermerk_id"],
             betrifft=z["betrifft"],
             text=z["text"],
+            text_fr=z["text_fr"],
             angelegt_am=date.fromisoformat(z["angelegt_am"]),
             erledigt_am=date.fromisoformat(z["erledigt_am"]) if z["erledigt_am"] else None,
             erledigt_durch=z["erledigt_durch"],

@@ -134,14 +134,16 @@ def baue_daten() -> dict[str, Any]:
             for menge in (500, 1000):
                 auftrag = baue_mischauftrag(wirksam, menge, art=art)
                 auftraege[f"{art.value}:{menge}"] = auftrag.model_dump(by_alias=True, mode="json")
+        ausgleich = next(
+            i for i in baue_mischauftrag(wirksam, 1000).issues if "Ausgeglichen" in i.text
+        )
         vermerke.append(
             Pruefvermerk(
                 tenant_id="demo",
                 vermerk_id=f"ausgleich:{wirksam.key}",
                 betrifft=f"Rezept {wirksam.key}",
-                text=next(
-                    i for i in baue_mischauftrag(wirksam, 1000).issues if "Ausgeglichen" in i
-                ),
+                text=ausgleich.text,
+                text_fr=ausgleich.text_fr,
                 angelegt_am=STICHTAG - timedelta(days=9),
             )
         )
@@ -180,7 +182,7 @@ def baue_daten() -> dict[str, Any]:
                 "vorgabe": x.vorgabe,
                 "schritte": len(x.schritte),
                 "dauerregeln": len(x.dauerregeln),
-                "hinweise": x.hinweise,
+                "hinweise": [h.model_dump(by_alias=True, mode="json") for h in x.hinweise],
             }
             for x in alle_programme()
         ],
@@ -193,8 +195,11 @@ def baue_daten() -> dict[str, Any]:
 ATTRAPPE = """
 <div id="demo-band" style="background:#8a6412;color:#fff;padding:10px 16px;
      font:600 15px/1.5 system-ui,sans-serif;text-align:center">
-  Demo mit erfundenen Betriebsdaten — Stichtag DATUM_HIER.
-  Eingaben bleiben im Browser, es wird nichts gespeichert.
+  <!-- In drei Stücke geteilt, damit der Übersetzungslauf der Seite greift:
+       er schlägt ganze Textknoten nach, und das Datum steht in keinem
+       Wörterbuch. -->
+  <span>Demo mit erfundenen Betriebsdaten</span> — DATUM_HIER.
+  <span>Eingaben bleiben im Browser, es wird nichts gespeichert.</span>
   <a href="https://github.com/Rawkeep/elevage-e2e" style="color:#fff">Quelltext</a>
 </div>
 <script>

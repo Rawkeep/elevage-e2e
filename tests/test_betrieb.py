@@ -40,7 +40,7 @@ def mische(conn, am: date, kg: float) -> None:
 def test_ohne_mischung_steht_die_kurve_ganz_auf_richtwerten(conn):
     kurve, issues = verzehrkurve(conn, "hof", "H1")
     assert all(p.quelle is Quelle.RICHTWERT for p in kurve.punkte)
-    assert any("Noch keine protokollierte Mischung" in i for i in issues)
+    assert any("Noch keine protokollierte Mischung" in i.text for i in issues)
 
 
 def test_die_kurve_lernt_aus_dem_eigenen_mischprotokoll(conn):

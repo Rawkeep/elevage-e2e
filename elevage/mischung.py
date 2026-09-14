@@ -19,7 +19,7 @@ from __future__ import annotations
 
 from decimal import ROUND_HALF_UP, Decimal
 
-from elevage.models import Ausgleichsart, Mischauftrag, Mischzeile, Posten, Rezept
+from elevage.models import Ausgleichsart, Befund, Mischauftrag, Mischzeile, Posten, Rezept, befund
 from elevage.rezepte import AUSGLEICH_GRENZE_KG, SUMMEN_TOLERANZ_KG, ausgleichsposten
 
 WAAGE_STELLEN = 2
@@ -50,18 +50,39 @@ def vermerk_text(rezept: Rezept, artikel_id: str, alt: float, neu: float) -> str
     )
 
 
+def vermerk_text_fr(rezept: Rezept, artikel_id: str, alt: float, neu: float) -> str:
+    """Derselbe Satz auf Französisch.
+
+    Ein Vermerk wird gespeichert, nicht gerechnet — beide Fassungen
+    entstehen deshalb hier, in dem Moment, in dem er angelegt wird.
+    """
+    name = next(p.name for p in rezept.posten if p.artikel_id == artikel_id)
+    franzoesisch = rezept.name_fr or rezept.name
+    return (
+        f"La formule « {franzoesisch} » ne tombe pas sur 100 kg "
+        f"({rezept.summe_je_100:.2f} kg pour 100 kg). L'excédent de "
+        f"{abweichung(rezept):+.2f} kg est compensé sur {name} "
+        f"({alt:.2f} → {neu:.2f} kg pour 100 kg). Source : {rezept.quelle}. "
+        "Vérifier sur l'original quelle ligne a été mal recopiée."
+    )
+
+
 def _ausgeglichene_posten(
     rezept: Rezept, delta: float
-) -> tuple[list[Posten], str, float, float, list[str]]:
+) -> tuple[list[Posten], str, float, float, list[Befund]]:
     """Den Überhang aus einem Posten nehmen. Meldet, wenn das nicht geht."""
     ziel = ausgleichsposten(rezept)
     alt = next(p.kg_je_100 for p in rezept.posten if p.artikel_id == ziel)
     neu = _runde(alt - delta, 4)
-    issues: list[str] = []
+    issues: list[Befund] = []
     if neu <= 0:
         issues.append(
-            f"GESPERRT: Der Überhang von {delta:+.2f} kg ist größer als der "
-            f"Ausgleichsposten ({alt:.2f} kg). Hier stimmt mehr als eine Zeile nicht."
+            befund(
+                f"GESPERRT: Der Überhang von {delta:+.2f} kg ist größer als der "
+                f"Ausgleichsposten ({alt:.2f} kg). Hier stimmt mehr als eine Zeile nicht.",
+                f"BLOQUÉ : l'excédent de {delta:+.2f} kg dépasse le poste de "
+                f"compensation ({alt:.2f} kg). Ici, c'est plus d'une ligne qui cloche.",
+            )
         )
         return list(rezept.posten), ziel, alt, alt, issues
     posten = [
@@ -87,7 +108,7 @@ def baue_mischauftrag(
 
     summe = rezept.summe_je_100
     delta = abweichung(rezept)
-    issues: list[str] = []
+    issues: list[Befund] = []
     posten = list(rezept.posten)
     ziel_posten: str | None = None
     faktor = ziel_kg / 100.0
@@ -97,14 +118,23 @@ def baue_mischauftrag(
         art = Ausgleichsart.VERBATIM  # nichts auszugleichen
     else:
         issues.append(
-            f"Rezept „{rezept.name}“ summiert auf {summe:.2f} kg je 100 kg "
-            f"({delta:+.2f} kg). Quelle: {rezept.quelle}."
+            befund(
+                f"Rezept „{rezept.name}“ summiert auf {summe:.2f} kg je 100 kg "
+                f"({delta:+.2f} kg). Quelle: {rezept.quelle}.",
+                f"La formule « {rezept.name} » totalise {summe:.2f} kg pour 100 kg "
+                f"({delta:+.2f} kg). Source : {rezept.quelle}.",
+            )
         )
         if art is Ausgleichsart.AUSGLEICH and abs(delta) > AUSGLEICH_GRENZE_KG:
             issues.append(
-                f"GESPERRT: {delta:+.2f} kg je 100 kg ist kein Abschreibfehler mehr, "
-                f"sondern eine andere Rezeptur (Grenze {AUSGLEICH_GRENZE_KG:.0f} kg). "
-                "Ein Mensch muss entscheiden, welche Zeile falsch ist."
+                befund(
+                    f"GESPERRT: {delta:+.2f} kg je 100 kg ist kein Abschreibfehler mehr, "
+                    f"sondern eine andere Rezeptur (Grenze {AUSGLEICH_GRENZE_KG:.0f} kg). "
+                    "Ein Mensch muss entscheiden, welche Zeile falsch ist.",
+                    f"BLOQUÉ : {delta:+.2f} kg pour 100 kg, ce n'est plus une faute de "
+                    f"recopie mais une autre formule (limite {AUSGLEICH_GRENZE_KG:.0f} kg). "
+                    "C'est à un humain de dire quelle ligne est fausse.",
+                )
             )
             freigegeben = False
         elif art is Ausgleichsart.AUSGLEICH:
@@ -114,19 +144,31 @@ def baue_mischauftrag(
                 freigegeben = False
             else:
                 issues.append(
-                    f"Ausgeglichen über {ziel_posten}: {alt:.2f} → {neu:.2f} kg je 100 kg. "
-                    "Als Prüfvermerk hinterlegt."
+                    befund(
+                        f"Ausgeglichen über {ziel_posten}: {alt:.2f} → {neu:.2f} kg je "
+                        "100 kg. Als Prüfvermerk hinterlegt.",
+                        f"Compensé sur {ziel_posten} : {alt:.2f} → {neu:.2f} kg pour "
+                        "100 kg. Déposé comme point à vérifier.",
+                    )
                 )
         elif art is Ausgleichsart.ANTEILIG:
             faktor = faktor * 100.0 / summe
             issues.append(
-                f"Anteilig skaliert (×{100.0 / summe:.4f}) — jeder Anteil ändert sich, "
-                "auch Wirkstoffe und Kalk."
+                befund(
+                    f"Anteilig skaliert (×{100.0 / summe:.4f}) — jeder Anteil ändert sich, "
+                    "auch Wirkstoffe und Kalk.",
+                    f"Mis à l'échelle (×{100.0 / summe:.4f}) — chaque proportion change, "
+                    "y compris les principes actifs et le calcaire.",
+                )
             )
         else:
             issues.append(
-                f"Verbatim gerechnet: es gehen {_runde(summe * faktor):.2f} kg in den "
-                f"Mischer, nicht {ziel_kg:.2f} kg."
+                befund(
+                    f"Verbatim gerechnet: es gehen {_runde(summe * faktor):.2f} kg in den "
+                    f"Mischer, nicht {ziel_kg:.2f} kg.",
+                    f"Calculé tel quel : ce sont {_runde(summe * faktor):.2f} kg qui "
+                    f"partent au mélangeur, pas {ziel_kg:.2f} kg.",
+                )
             )
 
     zeilen = [

@@ -441,7 +441,11 @@ def baue_handler(db: Path | None) -> type[BaseHTTPRequestHandler]:
                     conn, sitzung.tenant_id, _pflicht(dict(frage), "herde")
                 )
             self._json(
-                200, {"kurve": kurve.model_dump(by_alias=True, mode="json"), "issues": issues}
+                200,
+                {
+                    "kurve": kurve.model_dump(by_alias=True, mode="json"),
+                    "issues": [i.model_dump(by_alias=True, mode="json") for i in issues],
+                },
             )
 
         def _abgang(self, daten: dict[str, Any]) -> None:
@@ -497,7 +501,9 @@ def baue_handler(db: Path | None) -> type[BaseHTTPRequestHandler]:
                             "vorgabe": x.vorgabe,
                             "schritte": len(x.schritte),
                             "dauerregeln": len(x.dauerregeln),
-                            "hinweise": x.hinweise,
+                            "hinweise": [
+                                h.model_dump(by_alias=True, mode="json") for h in x.hinweise
+                            ],
                         }
                         for x in alle_programme(art)
                     ]

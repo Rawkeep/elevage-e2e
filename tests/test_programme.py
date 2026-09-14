@@ -83,14 +83,14 @@ def test_eine_unpassende_wahl_faellt_zurueck_und_wird_gemeldet():
     blatt = programm(Tierart.MASTHUHN, "VETO_PONDEUSE")
     assert blatt.programm_id == "IVOGRAIN_CHAIR"
     meldung = programm_konflikt(Tierart.MASTHUHN, "VETO_PONDEUSE")
-    assert meldung and "MASTHUHN" in meldung
+    assert meldung and "MASTHUHN" in meldung.text
     assert programm_konflikt(Tierart.LEGEHENNE, "VETO_PONDEUSE") is None
     assert programm_konflikt(Tierart.LEGEHENNE, None) is None
 
 
 def test_der_befund_wandert_bis_ins_tagesbild():
     issues = offene_issues(_herde("GIBT_ES_NICHT"), date(2026, 3, 1))
-    assert any("unbekannt" in i for i in issues)
+    assert any("unbekannt" in i.text for i in issues)
 
 
 def test_eine_pause_ist_keine_aufgabe():
@@ -125,7 +125,7 @@ def test_die_dauerregel_faengt_an_ihrem_tag_an():
 
 def test_das_veto_blatt_meldet_seine_widersprueche():
     """Verbatim übernehmen heißt: melden, nicht glattziehen."""
-    alle = [i for s in PROGRAMM_LEGEHENNE_VETO for i in s.issues]
+    alle = [i.text for s in PROGRAMM_LEGEHENNE_VETO for i in s.issues]
     assert any("ANTI-STRESS" in i for i in alle)  # J17 trägt die falsche Überschrift
     assert any("CORYMINE" in i for i in alle)  # Schreibweise J120 gegen J84
     assert any("Réforme" in i for i in alle)  # kein Enddatum

@@ -16,7 +16,7 @@ from __future__ import annotations
 
 from datetime import date, timedelta
 
-from elevage.models import Bestand, Bestandsbewegung, Herde
+from elevage.models import Befund, Bestand, Bestandsbewegung, Herde, befund
 
 VERLUST_WARNSCHWELLE_PROZENT = 5.0
 """Ab hier wird der Verlust im Tagesbild als Befund genannt.
@@ -43,18 +43,27 @@ def rechne_bestand(herde: Herde, stichtag: date, bewegungen: list[Bestandsbewegu
     zugang = sum(b.zugang for b in bis_stichtag)
     tierzahl = herde.tierzahl - abgang + zugang
 
-    issues: list[str] = []
+    issues: list[Befund] = []
     if tierzahl < 0:
         issues.append(
-            f"Mehr Abgänge ({abgang}) als je eingestallt ({herde.tierzahl}) — "
-            "hier stimmt eine Buchung nicht."
+            befund(
+                f"Mehr Abgänge ({abgang}) als je eingestallt ({herde.tierzahl}) — "
+                "hier stimmt eine Buchung nicht.",
+                f"Plus de sorties ({abgang}) que d'animaux jamais mis en place "
+                f"({herde.tierzahl}) — une écriture ne va pas.",
+            )
         )
         tierzahl = 0
 
     verluste = sum(b.abgang for b in bis_stichtag if b.grund.value in ("VERENDET", "GEKEULT"))
     anteil = round(verluste / herde.tierzahl * 100, 2) if herde.tierzahl else 0.0
     if anteil >= VERLUST_WARNSCHWELLE_PROZENT:
-        issues.append(f"Verluste seit dem Einstallen: {verluste} Tiere ({anteil:.1f} %).")
+        issues.append(
+            befund(
+                f"Verluste seit dem Einstallen: {verluste} Tiere ({anteil:.1f} %).",
+                f"Pertes depuis la mise en place : {verluste} animaux ({anteil:.1f} %).",
+            )
+        )
 
     seit = stichtag - timedelta(days=HAEUFUNG_TAGE)
     jung = sum(
@@ -63,15 +72,24 @@ def rechne_bestand(herde: Herde, stichtag: date, bewegungen: list[Bestandsbewegu
     jung_anteil = round(jung / herde.tierzahl * 100, 2) if herde.tierzahl else 0.0
     if jung_anteil >= HAEUFUNG_PROZENT:
         issues.append(
-            f"Häufung: {jung} Tiere ({jung_anteil:.1f} %) in den letzten "
-            f"{HAEUFUNG_TAGE} Tagen. Das ist etwas anderes als dieselbe Zahl "
-            "über Monate."
+            befund(
+                f"Häufung: {jung} Tiere ({jung_anteil:.1f} %) in den letzten "
+                f"{HAEUFUNG_TAGE} Tagen. Das ist etwas anderes als dieselbe Zahl "
+                "über Monate.",
+                f"Concentration : {jung} animaux ({jung_anteil:.1f} %) sur les "
+                f"{HAEUFUNG_TAGE} derniers jours. Ce n'est pas la même chose que "
+                "le même chiffre étalé sur des mois.",
+            )
         )
 
     if not bis_stichtag:
         issues.append(
-            "Keine Bestandsbewegung erfasst — gerechnet wird mit der Einstallzahl. "
-            "Ohne Abgänge ist die Verzehrkurve zu niedrig."
+            befund(
+                "Keine Bestandsbewegung erfasst — gerechnet wird mit der Einstallzahl. "
+                "Ohne Abgänge ist die Verzehrkurve zu niedrig.",
+                "Aucun mouvement d'effectif saisi — le calcul part du nombre mis en "
+                "place. Sans les sorties, la courbe de consommation est trop basse.",
+            )
         )
 
     return Bestand(

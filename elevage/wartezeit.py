@@ -28,6 +28,7 @@ from __future__ import annotations
 from datetime import date, timedelta
 
 from elevage.models import (
+    Befund,
     Erzeugnis,
     Herde,
     Kategorie,
@@ -36,6 +37,7 @@ from elevage.models import (
     Schritt,
     Sperrfenster,
     Tierart,
+    befund,
 )
 
 WARTEZEIT_RELEVANT = {
@@ -73,14 +75,14 @@ def berechne_sperren(
     quittungen: list[Quittung],
     schritte: list[Schritt],
     praeparate: list[Praeparat],
-) -> tuple[list[Sperrfenster], list[str]]:
+) -> tuple[list[Sperrfenster], list[Befund]]:
     """Offene und abgelaufene Sperren plus die Befunde, die dabei auffallen."""
     erzeugnis = ERZEUGNIS_JE_TIERART[herde.tierart]
     nach_key = {s.key: s for s in schritte}
     stamm = {p.praeparat_id: p for p in praeparate}
 
     sperren: list[Sperrfenster] = []
-    issues: list[str] = []
+    issues: list[Befund] = []
     ohne_angabe: list[str] = []
     ohne_zahl: set[str] = set()
 
@@ -122,14 +124,24 @@ def berechne_sperren(
 
     if ohne_angabe:
         issues.append(
-            f"{len(ohne_angabe)} abgehakte Behandlung(en) ohne Angabe, welches Mittel "
-            "gegeben wurde — ohne das lässt sich keine Wartezeit rechnen "
-            f"(z. B. „{ohne_angabe[0]}“)."
+            befund(
+                f"{len(ohne_angabe)} abgehakte Behandlung(en) ohne Angabe, welches Mittel "
+                "gegeben wurde — ohne das lässt sich keine Wartezeit rechnen "
+                f"(z. B. „{ohne_angabe[0]}“).",
+                f"{len(ohne_angabe)} traitement(s) coché(s) sans indication du produit "
+                "administré — sans elle, aucun délai d'attente n'est calculable "
+                f"(p. ex. « {ohne_angabe[0]} »).",
+            )
         )
     for name in sorted(ohne_zahl):
         issues.append(
-            f"Für „{name}“ ist keine Wartezeit hinterlegt. Unbekannt ist nicht null — "
-            "die Zahl steht auf der Packung: 'elevage praeparat' trägt sie ein."
+            befund(
+                f"Für „{name}“ ist keine Wartezeit hinterlegt. Unbekannt ist nicht null — "
+                "die Zahl steht auf der Packung: 'elevage praeparat' trägt sie ein.",
+                f"Aucun délai d'attente enregistré pour « {name} ». Inconnu ne veut pas "
+                "dire zéro — le chiffre est sur l'emballage : 'elevage praeparat' "
+                "le saisit.",
+            )
         )
     sperren.sort(key=lambda s: s.freigabe_ab)
     return sperren, issues

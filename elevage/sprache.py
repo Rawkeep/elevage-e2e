@@ -96,9 +96,11 @@ FRANZOESISCH: dict[str, str] = {
     # Formularfelder
     "Menge (kg)": "Quantité (kg)",
     "Bei Überhang": "En cas d'excédent",
-    "über den Energieträger ausgleichen": "compenser sur la céréale",
-    "wie auf dem Blatt rechnen": "calculer comme sur la fiche",
-    "alles anteilig skalieren": "tout mettre à l'échelle",
+    # Kurz, weil die Auswahl im Feld lesbar bleiben muss — welcher Posten
+    # ausgeglichen wird, steht im Ergebnis („Ausgeglichen über MAIS …“).
+    "ausgleichen": "compenser",
+    "wie im Blatt": "comme sur la fiche",
+    "anteilig skalieren": "mettre à l'échelle",
     "Als gemischt buchen": "Enregistrer comme mélangé",
     "Art": "Type",
     "Festgestellt am": "Constaté le",

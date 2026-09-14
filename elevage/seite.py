@@ -387,6 +387,18 @@ summary {
   min-height: 32px; display: flex; align-items: center; gap: 8px;
 }
 summary:focus-visible { outline: 3px solid var(--ocker); outline-offset: 3px; }
+/* Ohne Zeichen liest sich ein zugeklappter Abschnitt wie eine tote
+   Überschrift — und `display:flex` schluckt den eingebauten Pfeil.
+   Also einer aus zwei Rändern, gedreht. */
+summary::marker { content: ""; }
+summary::-webkit-details-marker { display: none; }
+summary::before {
+  content: ""; flex: 0 0 auto; width: 6px; height: 6px;
+  border-right: 2px solid currentColor; border-bottom: 2px solid currentColor;
+  transform: rotate(-45deg); margin-inline-end: 3px;
+}
+details[open] > summary::before { transform: rotate(45deg); }
+summary:hover { color: var(--text); }
 details > :not(summary) { margin-top: 10px; }
 
 .breit { overflow-x: auto; }
@@ -414,6 +426,7 @@ body:not([data-rolle="LEITUNG"]) #vermerke button { display: none; }
 body:not([data-rolle="LEITUNG"]) #programmwechsel { display: none; }
 
 @media (prefers-reduced-motion: no-preference) {
+  summary::before { transition: transform .15s ease; }
   .toast { animation: hoch .2s ease-out; }
   @keyframes hoch { from { transform: translateY(8px); opacity: 0; } }
 }
@@ -543,9 +556,9 @@ _SEITE_MARKUP = """
         <input id="menge" type="number" min="1" step="50" value="500"></div>
       <div class="feld"><label for="art">Bei Überhang</label>
         <select id="art">
-          <option value="AUSGLEICH">über den Energieträger ausgleichen</option>
-          <option value="VERBATIM">wie auf dem Blatt rechnen</option>
-          <option value="ANTEILIG">alles anteilig skalieren</option>
+          <option value="AUSGLEICH">ausgleichen</option>
+          <option value="VERBATIM">wie im Blatt</option>
+          <option value="ANTEILIG">anteilig skalieren</option>
         </select></div>
       <button class="tat" id="rechnen" type="button">Rechnen</button>
       <button class="still" id="buchen" type="button" hidden>Als gemischt buchen</button>

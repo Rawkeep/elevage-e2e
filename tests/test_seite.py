@@ -292,3 +292,24 @@ def test_fehlt_der_wortlaut_bleibt_es_deutsch():
 
 def test_die_dosis_steht_am_posten():
     assert "t.dosisJeLiter" in SEITE
+
+
+def test_ein_zugeklappter_abschnitt_sieht_aufklappbar_aus():
+    """Sechs gleich aussehende Großbuchstaben-Zeilen ohne Zeichen lesen sich
+    wie tote Überschriften — und `display:flex` schluckt den eingebauten
+    Pfeil von <summary>."""
+    assert "summary::before" in SEITE
+    assert "details[open] > summary::before { transform: rotate(45deg); }" in SEITE
+    assert "summary::-webkit-details-marker { display: none; }" in SEITE
+
+
+def test_die_gewaehlte_ausgleichsart_ist_lesbar():
+    """Sie entscheidet, was in den Mischer geht — abgeschnitten („über den
+    Ene…“) war nicht erkennbar, welche gerade gilt."""
+    for kurz in (
+        '<option value="AUSGLEICH">ausgleichen<',
+        '">wie im Blatt<',
+        '">anteilig skalieren<',
+    ):
+        assert kurz in SEITE, kurz
+    assert "über den Energieträger ausgleichen" not in SEITE

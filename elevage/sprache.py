@@ -63,6 +63,31 @@ FRANZOESISCH: dict[str, str] = {
     "Vorfall melden": "Signaler un incident",
     "Abgang buchen": "Enregistrer une sortie",
     "Befunde": "Constats",
+    "Programm": "Programme",
+    "Programm wechseln": "Changer de programme",
+    "Blätter vergleichen": "Comparer les programmes",
+    "Ruhe": "Repos",
+    "Merksätze des Blattes": "Consignes du programme",
+    "Tierarzt": "Vétérinaire",
+    "Dosis": "Dosage",
+    "Gegenüberstellung": "Comparaison",
+    "Gegenüberstellen": "Comparer",
+    "Übernehmen": "Appliquer",
+    "Thema": "Sujet",
+    "Links": "Gauche",
+    "Rechts": "Droite",
+    "bis": "jusqu'au",
+    "Abgehakte Schritte bleiben abgehakt. Welches Blatt gilt, entscheidet der Betrieb.": (
+        "Les étapes cochées le restent. C'est l'exploitation qui décide quel programme s'applique."
+    ),
+    "Gleich in beiden": "Identique dans les deux",
+    "Welches Blatt gilt, entscheidet der Betrieb.": (
+        "C'est l'exploitation qui décide quel programme s'applique."
+    ),
+    "Das Programm dieser Herde wurde gewechselt.": ("Le programme de cette bande a été changé."),
+    "Nur die Leitung darf das Programm wechseln.": (
+        "Seule la direction peut changer de programme."
+    ),
     # Zustände
     "überfällig": "en retard",
     "jetzt dran": "à faire",

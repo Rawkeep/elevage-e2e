@@ -9,9 +9,17 @@ from __future__ import annotations
 from datetime import date, timedelta
 
 from elevage.einstellung import notfall_dosis
-from elevage.models import Ampel, Ereignis, Herde, Quittung, Schritt, Termin, Tierart
+from elevage.models import (
+    Ampel,
+    Ereignis,
+    Herde,
+    Quittung,
+    Schritt,
+    Termin,
+    Tierart,
+)
 from elevage.notfall import futterwechsel_schritte, schritte_fuer_vorfall
-from elevage.programme import LEGEPHASE_AB_WOCHE, WIEDERKEHREND_LEGEPHASE, programm
+from elevage.programme import LEGEPHASE_AB_WOCHE, programm, programm_konflikt
 
 VORSCHAU_TAGE = 7
 """Wie weit 'demnächst' in die Zukunft reicht."""
@@ -56,13 +64,18 @@ def _ampel(von: date, bis: date, stichtag: date, erledigt: bool) -> Ampel:
 
 
 def _wiederkehrende_schritte(herde: Herde, bis_tag: int) -> list[Schritt]:
-    """Die Legeperiode entfalten: Dauerregeln aus dem NB-Kasten des Blattes."""
+    """Die Dauerperiode entfalten — die Regeln des gewählten Blattes.
+
+    Wann sie anfängt, sagt die Regel selbst (`ab_tag`); ohne Angabe gilt
+    der Beginn der Legephase. Das IVOGRAIN-Blatt rechnet in Wochen, das
+    VETO-Blatt nennt einen Tag — beide passen so in dieselbe Rechnung.
+    """
     if herde.tierart is not Tierart.LEGEHENNE:
         return []
-    start = 7 * (LEGEPHASE_AB_WOCHE - 1) + 1
+    legephase = 7 * (LEGEPHASE_AB_WOCHE - 1) + 1
     raus: list[Schritt] = []
-    for regel in WIEDERKEHREND_LEGEPHASE:
-        tag = start
+    for regel in programm(herde.tierart, herde.programm_id).dauerregeln:
+        tag = regel.ab_tag if regel.ab_tag is not None else legephase
         nummer = 1
         while tag <= bis_tag:
             raus.append(
@@ -71,11 +84,12 @@ def _wiederkehrende_schritte(herde: Herde, bis_tag: int) -> list[Schritt]:
                     tierart=Tierart.LEGEHENNE,
                     von_tag=tag,
                     bis_tag=tag + 6,
-                    titel=f"{regel.titel} ({nummer}. Gabe der Legeperiode)",
+                    titel=f"{regel.titel} ({nummer}. Gabe der Dauerperiode)",
                     kategorie=regel.kategorie,
                     verabreichung=regel.verabreichung,
                     praeparate=list(regel.praeparate),
                     hinweis=regel.hinweis,
+                    dosis_je_liter=regel.dosis_je_liter,
                     vorlauf_tage=3,
                 )
             )
@@ -97,7 +111,8 @@ def schritte_fuer(
     """
     alter = alter_in_tagen(herde, stichtag)
     horizont = max(alter, 0) + LEGEPHASE_HORIZONT_TAGE
-    schritte = [s for s in programm(herde.tierart) if _gilt(s, herde)]
+    blatt = programm(herde.tierart, herde.programm_id)
+    schritte = [s for s in blatt.schritte if _gilt(s, herde)]
     schritte += _wiederkehrende_schritte(herde, horizont)
     schritte += futterwechsel_schritte(herde)
     dosis, vom_betrieb = notfall_dosis(einstellungen or {}, herde.tierart)
@@ -148,6 +163,8 @@ def baue_termine(
                 ampel=_ampel(von, bis, stichtag, quittung is not None),
                 bedingt=s.bedingt,
                 hinweis=s.hinweis,
+                dosis_je_liter=s.dosis_je_liter,
+                quelle=s.quelle,
                 erledigt_am=quittung.erledigt_am if quittung else None,
                 lot=quittung.lot if quittung else None,
             )
@@ -164,6 +181,9 @@ def offene_issues(
 ) -> list[str]:
     """Widersprüche, die in den geltenden Schritten stecken — ohne Dopplung."""
     raus: list[str] = []
+    konflikt = programm_konflikt(herde.tierart, herde.programm_id)
+    if konflikt:
+        raus.append(konflikt)
     for s in schritte_fuer(herde, stichtag, ereignisse, einstellungen):
         for i in s.issues:
             zeile = f"{s.key}: {i}"

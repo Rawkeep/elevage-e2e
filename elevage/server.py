@@ -51,8 +51,12 @@ from elevage.models import (
     Quittung,
     Rolle,
     Sitzung,
+    Tierart,
+    Tierarzt,
 )
+from elevage.programme import alle_programme
 from elevage.seite import ANMELDESEITE, DIENER, ERSTER_BENUTZER, SEITE
+from elevage.vergleich import vergleiche
 from elevage.version import stempel
 from elevage.wartezeit import praeparat_id
 
@@ -276,6 +280,10 @@ def baue_handler(db: Path | None) -> type[BaseHTTPRequestHandler]:
                     self._verzehr(frage)
                 elif teile.path == "/api/praeparate":
                     self._praeparate()
+                elif teile.path == "/api/programme":
+                    self._programme(frage)
+                elif teile.path == "/api/vergleich":
+                    self._vergleich(frage)
                 else:
                     raise _Fehler(404, "Unbekannter Pfad")
             except _Fehler as fehler:
@@ -312,6 +320,10 @@ def baue_handler(db: Path | None) -> type[BaseHTTPRequestHandler]:
                     self._praeparat(daten)
                 elif teile.path == "/api/abgang":
                     self._abgang(daten)
+                elif teile.path == "/api/programm":
+                    self._programm(daten)
+                elif teile.path == "/api/tierarzt":
+                    self._tierarzt(daten)
                 elif teile.path == "/api/passwort":
                     self._passwort(daten)
                 else:
@@ -466,6 +478,71 @@ def baue_handler(db: Path | None) -> type[BaseHTTPRequestHandler]:
                 200,
                 {"praeparate": [m.model_dump(by_alias=True, mode="json") for m in mittel]},
             )
+
+        def _programme(self, frage: dict[str, str]) -> None:
+            """Die Blätter zur Auswahl. Ohne Schritte — die Liste soll kurz
+            bleiben; wer die Schritte will, sieht sie im Tagesbild."""
+            self._sitzung()
+            gewaehlt = frage.get("tierart")
+            art = Tierart(gewaehlt) if gewaehlt else None
+            self._json(
+                200,
+                {
+                    "programme": [
+                        {
+                            "programmId": x.programm_id,
+                            "titel": x.titel,
+                            "tierart": x.tierart.value,
+                            "herausgeber": x.herausgeber or x.quelle,
+                            "vorgabe": x.vorgabe,
+                            "schritte": len(x.schritte),
+                            "dauerregeln": len(x.dauerregeln),
+                            "hinweise": x.hinweise,
+                        }
+                        for x in alle_programme(art)
+                    ]
+                },
+            )
+
+        def _vergleich(self, frage: dict[str, str]) -> None:
+            """Zwei Blätter gegenübergestellt — gerechnet, nicht formuliert."""
+            self._sitzung()
+            links = frage.get("links") or ""
+            rechts = frage.get("rechts") or ""
+            bekannt = {x.programm_id: x for x in alle_programme()}
+            if links not in bekannt or rechts not in bekannt:
+                raise _Fehler(400, "Unbekanntes Programm")
+            ergebnis = vergleiche(bekannt[links], bekannt[rechts])
+            self._json(200, ergebnis.model_dump(by_alias=True, mode="json"))
+
+        def _programm(self, daten: dict[str, Any]) -> None:
+            """Das Blatt einer Herde wechseln. Nur die Leitung — ein
+            Programmwechsel verschiebt Impftermine, das ist keine Stallarbeit."""
+            sitzung = self._darf(LEITUNG_NUR)
+            herde_id = str(daten.get("herde") or "")
+            gewaehlt = daten.get("programm") or None
+            with self._mit_db() as conn:
+                herde = betrieb.setze_programm(
+                    conn, sitzung.tenant_id, herde_id, str(gewaehlt) if gewaehlt else None
+                )
+            self._json(200, {"herde": herde.model_dump(by_alias=True, mode="json")})
+
+        def _tierarzt(self, daten: dict[str, Any]) -> None:
+            sitzung = self._darf(LEITUNG_NUR)
+            name = str(daten.get("name") or "").strip()
+            if not name:
+                raise _Fehler(400, "Ohne Namen kein Eintrag")
+            arzt = Tierarzt(
+                tenant_id=sitzung.tenant_id,
+                name=name,
+                praxis=str(daten.get("praxis") or "") or None,
+                telefon=str(daten.get("telefon") or "") or None,
+                email=str(daten.get("email") or "") or None,
+                hinweis=str(daten.get("hinweis") or "") or None,
+            )
+            with self._mit_db() as conn:
+                archiv.setze_tierarzt(conn, arzt)
+            self._json(200, {"tierarzt": arzt.model_dump(by_alias=True, mode="json")})
 
         def _praeparat(self, daten: dict[str, Any]) -> None:
             # Eine Wartezeit einzutragen heißt, für sie geradezustehen.

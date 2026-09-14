@@ -33,6 +33,13 @@ class Kategorie(str, Enum):
     ENTWURMUNG = "ENTWURMUNG"
     EINGRIFF = "EINGRIFF"
     FUTTERWECHSEL = "FUTTERWECHSEL"
+    ANTI_STRESS = "ANTI_STRESS"
+    LEBERSCHUTZ = "LEBERSCHUTZ"
+    # PAUSE = ausdrücklich nichts geben (VETO-NEGOCES: „EAU SIMPLE").
+    # Kein Versäumnis, sondern eine Anweisung — deshalb eine eigene
+    # Kategorie und kein fehlender Schritt. Sie erzeugt keinen Posten zum
+    # Abhaken, sondern eine Zeile im Stand.
+    PAUSE = "PAUSE"
 
 
 class Verabreichung(str, Enum):
@@ -110,6 +117,10 @@ class Schritt(_Basis):
     vorlauf_tage: int = 0
     folgt_auf: str | None = None
     hinweis: str | None = None
+    dosis_je_liter: str | None = Field(
+        default=None,
+        description="Dosierung wörtlich vom Blatt, z. B. '1 g/l' oder '2 ml/l'",
+    )
     quelle: str = "IVOGRAIN"
     issues: list[str] = Field(default_factory=list)
 
@@ -150,6 +161,10 @@ class Herde(_Basis):
     tierzahl: int
     hoher_virusdruck: bool = False
     spaete_schlachtung: bool = False
+    programm_id: str | None = Field(
+        default=None,
+        description="Welches Prophylaxe-Programm gilt; None = Vorgabe der Tierart",
+    )
 
 
 class Quittung(_Basis):
@@ -187,6 +202,8 @@ class Termin(_Basis):
     ampel: Ampel
     bedingt: str | None = None
     hinweis: str | None = None
+    dosis_je_liter: str | None = None
+    quelle: str = ""
     erledigt_am: date | None = None
     lot: str | None = None
 
@@ -200,6 +217,85 @@ class Dauerregel(_Basis):
     verabreichung: Verabreichung
     praeparate: list[str] = Field(default_factory=list)
     intervall_tage: int
+    hinweis: str | None = None
+    dosis_je_liter: str | None = None
+    ab_tag: int | None = Field(
+        default=None,
+        description="Lebenstag, ab dem die Regel greift; None = ab Legephase",
+    )
+
+
+OFFENES_ENDE = 10_000
+"""`bis_tag` für Schritte ohne Enddatum („J128 à la Réforme").
+
+Eine Zahl, kein None: die ganze Planrechnung vergleicht Lebenstage, und
+ein None an dieser Stelle hieße überall eine Sonderbehandlung. 10.000 Tage
+sind 27 Jahre — jenseits jeder Legehenne."""
+
+
+class Programm(_Basis):
+    """Ein Prophylaxe-Blatt als Ganzes — Schritte, Dauerregeln, Merksätze.
+
+    Zwei Tierärzte, zwei Blätter, dieselbe Tierart: die Wahl gehört
+    deshalb an die Herde, nicht an die Tierart. Zusammenlegen wäre falsch —
+    die Blätter widersprechen sich an fast jedem Datum, und welches gilt,
+    entscheidet ein Mensch.
+    """
+
+    programm_id: str
+    titel: str
+    tierart: Tierart
+    quelle: str = Field(description="Wer das Blatt herausgibt")
+    herausgeber: str | None = Field(default=None, description="Praxis, Person, Kontakt")
+    schritte: list[Schritt] = Field(default_factory=list)
+    dauerregeln: list[Dauerregel] = Field(default_factory=list)
+    hinweise: list[str] = Field(
+        default_factory=list, description="Merksätze des Blattes — keine Termine"
+    )
+    vorgabe: bool = Field(default=False, description="Vorgabe für diese Tierart")
+
+
+class Programmunterschied(_Basis):
+    """Eine Zeile der Gegenüberstellung zweier Blätter."""
+
+    thema: str
+    links: str | None = None
+    rechts: str | None = None
+    gleich: bool = False
+
+
+class Programmvergleich(_Basis):
+    """Was zwei Blätter für dieselbe Tierart verschieden sagen.
+
+    Deterministisch gerechnet, nicht formuliert: gruppiert wird über die
+    Kategorie, verglichen werden die Tagesfenster. Das Urteil, welches
+    Blatt gilt, trifft der Betrieb.
+    """
+
+    tierart: Tierart
+    links_id: str
+    rechts_id: str
+    links_titel: str
+    rechts_titel: str
+    zeilen: list[Programmunterschied] = Field(default_factory=list)
+    nur_links: list[str] = Field(default_factory=list)
+    nur_rechts: list[str] = Field(default_factory=list)
+    issues: list[str] = Field(default_factory=list)
+
+
+class Tierarzt(_Basis):
+    """Der Tierarzt des Betriebs — je Mandant einer.
+
+    Steht auf jedem Blatt („Contactez votre vétérinaire dès que vous
+    constatez un changement de comportement"), gehört aber nicht ins
+    Programm: der Betrieb wechselt den Arzt, nicht das Blatt.
+    """
+
+    tenant_id: str
+    name: str
+    praxis: str | None = None
+    telefon: str | None = None
+    email: str | None = None
     hinweis: str | None = None
 
 
@@ -400,6 +496,8 @@ class Tagesbild(_Basis):
     herde: Herde
     alter_tage: int
     alter_wochen: int
+    programm_id: str = ""
+    programm_titel: str = ""
     phase: Rezept | None = None
     ueberfaellig: list[Termin] = Field(default_factory=list)
     heute: list[Termin] = Field(default_factory=list)
@@ -407,9 +505,14 @@ class Tagesbild(_Basis):
     bestellen: list[Termin] = Field(default_factory=list)
     erledigt: list[Termin] = Field(default_factory=list)
     futter: Futterprognose | None = None
+    ruhe: list[Termin] = Field(
+        default_factory=list,
+        description="Laufende Pausen — einfaches Wasser, nichts zum Abhaken",
+    )
     vorfaelle: list[Ereignis] = Field(default_factory=list)
     vermerke: list[Pruefvermerk] = Field(default_factory=list)
     sperren: list[Sperrfenster] = Field(default_factory=list)
+    tierarzt: Tierarzt | None = None
     bestand: Bestand | None = None
     ampel: Ampel = Ampel.GRUEN
     issues: list[str] = Field(default_factory=list)

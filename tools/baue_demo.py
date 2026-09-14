@@ -29,9 +29,12 @@ from elevage.models import (
     Pruefvermerk,
     Quittung,
     Tierart,
+    Tierarzt,
 )
+from elevage.programme import alle_programme
 from elevage.seite import SEITE
 from elevage.takt import rechne
+from elevage.vergleich import vergleiche
 from elevage.verzehr import aus_mischungen, kombiniere, richtwert
 
 WURZEL = Path(__file__).resolve().parents[1]
@@ -52,6 +55,17 @@ HERDE = Herde(
     tierzahl=1200,
 )
 
+TIERARZT = Tierarzt(
+    tenant_id="demo",
+    name="Dr. A. Mensah",
+    praxis="Tierarztpraxis Kara",
+    telefon="00 00 00 00",
+    hinweis="Erfunden wie die übrigen Demo-Daten — echte Kontaktdaten stehen "
+    "in keiner öffentlichen Seite.",
+)
+"""Bewusst erfunden: die Demo läuft öffentlich, und der Tierarzt auf dem
+echten Blatt ist eine Person mit Telefonnummer."""
+
 VORFALL = Ereignis(
     tenant_id="demo",
     herde_id="H1",
@@ -66,12 +80,17 @@ MISCHUNGEN = [(EINSTALL + timedelta(days=7 * n), 150.0 + 60.0 * n) for n in rang
 Woche etwas Gemessenes hat und die Demo nicht auf Richtwerten steht."""
 
 
-def _bild(quittungen: list[Quittung], vermerke: list[Pruefvermerk]) -> Any:
+def _bild(
+    quittungen: list[Quittung],
+    vermerke: list[Pruefvermerk],
+    programm_id: str | None = None,
+) -> Any:
     gemessen, kurven_issues = aus_mischungen(
         HERDE.tierart, HERDE.tierzahl, HERDE.einstalldatum, MISCHUNGEN
     )
+    herde = HERDE.model_copy(update={"programm_id": programm_id})
     return rechne(
-        HERDE,
+        herde,
         STICHTAG,
         quittungen,
         [VORFALL],
@@ -79,12 +98,15 @@ def _bild(quittungen: list[Quittung], vermerke: list[Pruefvermerk]) -> Any:
         vorrat_kg=650.0,
         kurven_issues=kurven_issues,
         vermerke=vermerke,
+        tierarzt=TIERARZT,
     )
 
 
-def baue_daten() -> dict[str, Any]:
-    roh = _bild([], [])
-    quittungen = [
+def _quittungen(programm_id: str | None) -> list[Quittung]:
+    """Was länger zurückliegt, gilt als abgehakt — je Blatt neu gerechnet,
+    weil die Schrittschlüssel des einen im anderen nicht vorkommen."""
+    roh = _bild([], [], programm_id)
+    return [
         Quittung(
             tenant_id="demo",
             herde_id="H1",
@@ -97,6 +119,11 @@ def baue_daten() -> dict[str, Any]:
         for t in roh.ueberfaellig
         if (STICHTAG - t.faellig_bis).days > ERLEDIGT_AB_TAGEN
     ]
+
+
+def baue_daten() -> dict[str, Any]:
+    roh = _bild([], [])
+    quittungen = _quittungen(None)
 
     phase = roh.phase
     auftraege: dict[str, Any] = {}
@@ -120,10 +147,44 @@ def baue_daten() -> dict[str, Any]:
         )
 
     bild = _bild(quittungen, vermerke)
+
+    # Jedes Blatt einmal durchgerechnet: in der Demo wechselt das Programm
+    # wirklich den Plan, statt nur die Überschrift zu tauschen.
+    blaetter = alle_programme(HERDE.tierart)
+    bilder = {
+        x.programm_id: _bild(_quittungen(x.programm_id), vermerke, x.programm_id).model_dump(
+            by_alias=True, mode="json"
+        )
+        for x in blaetter
+    }
+    gegenueber = {
+        f"{links.programm_id}|{rechts.programm_id}": vergleiche(links, rechts).model_dump(
+            by_alias=True, mode="json"
+        )
+        for links in blaetter
+        for rechts in blaetter
+        if links is not rechts
+    }
+
     return {
         "ich": {"tenantId": "demo", "benutzerId": "kofi", "name": "Kofi A.", "rolle": "LEITUNG"},
         "herden": [HERDE.model_dump(by_alias=True, mode="json")],
         "tagesbild": bild.model_dump(by_alias=True, mode="json"),
+        "bilder": bilder,
+        "programme": [
+            {
+                "programmId": x.programm_id,
+                "titel": x.titel,
+                "tierart": x.tierart.value,
+                "herausgeber": x.herausgeber or x.quelle,
+                "vorgabe": x.vorgabe,
+                "schritte": len(x.schritte),
+                "dauerregeln": len(x.dauerregeln),
+                "hinweise": x.hinweise,
+            }
+            for x in alle_programme()
+        ],
+        "vergleiche": gegenueber,
         "auftraege": auftraege,
         "stichtag": STICHTAG.isoformat(),
     }
@@ -177,6 +238,21 @@ window.fetch = async (pfad, optionen) => {
   if (pfad === "/api/ich") return antwort(DEMO.ich);
   if (pfad.startsWith("/api/herden")) return antwort({ herden: DEMO.herden });
   if (pfad.startsWith("/api/tagesbild")) return antwort(DEMO.tagesbild);
+  if (pfad.startsWith("/api/programme")) return antwort({ programme: DEMO.programme });
+  if (pfad.startsWith("/api/vergleich")) {
+    const frage = new URLSearchParams(pfad.split("?")[1] || "");
+    const treffer = DEMO.vergleiche[frage.get("links") + "|" + frage.get("rechts")];
+    if (!treffer) return antwort({ fehler: "In der Demo nicht gerechnet." }, 400);
+    return antwort(treffer);
+  }
+  if (pfad === "/api/programm") {
+    // Der Wechsel ist echt: jedes Blatt ist vorgerechnet mitgeliefert.
+    const anderes = DEMO.bilder[daten.programm];
+    if (!anderes) return antwort({ fehler: "In der Demo nicht gerechnet." }, 400);
+    DEMO.tagesbild = anderes;
+    DEMO.herden[0].programmId = daten.programm;
+    return antwort({ herde: DEMO.herden[0] });
+  }
   if (pfad === "/api/quittung") {
     verschiebe(daten.schritt, true);
     return antwort({ neu: true, quittungId: daten.schritt });

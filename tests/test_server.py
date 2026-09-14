@@ -490,3 +490,91 @@ def test_health_antwortet_auch_ohne_jeden_benutzer(tmp_path):
     finally:
         server.shutdown()
         server.server_close()
+
+
+# --- Programmwahl über die Schnittstelle --------------------------------
+
+
+def test_die_blaetter_stehen_zur_auswahl(angemeldet):
+    daten = angemeldet.hole("/api/programme")
+    kennungen = {p["programmId"] for p in daten["programme"]}
+    assert {"IVOGRAIN_PONDEUSE", "VETO_PONDEUSE", "IVOGRAIN_CHAIR"} <= kennungen
+    eines = next(p for p in daten["programme"] if p["programmId"] == "VETO_PONDEUSE")
+    assert eines["hinweise"] and eines["schritte"] > 0
+
+
+def test_die_auswahl_laesst_sich_nach_tierart_filtern(angemeldet):
+    daten = angemeldet.hole("/api/programme?tierart=MASTHUHN")
+    assert {p["programmId"] for p in daten["programme"]} == {"IVOGRAIN_CHAIR"}
+
+
+def test_der_programmwechsel_aendert_das_tagesbild(angemeldet):
+    vorher = angemeldet.hole(f"/api/tagesbild?herde=H1&stichtag={STICHTAG}")
+    assert vorher["programmId"] == "IVOGRAIN_PONDEUSE"
+    angemeldet.sende("/api/programm", {"herde": "H1", "programm": "VETO_PONDEUSE"})
+    nachher = angemeldet.hole(f"/api/tagesbild?herde=H1&stichtag={STICHTAG}")
+    assert nachher["programmId"] == "VETO_PONDEUSE"
+    # J10 (Einstall 02.03.) liegt im ersten „EAU SIMPLE“-Fenster J8–J12.
+    im_fenster = angemeldet.hole("/api/tagesbild?herde=H1&stichtag=2026-03-11")
+    assert im_fenster["ruhe"], "Das VETO-Blatt kennt Pausen, das Tagesbild muss sie zeigen"
+
+
+def test_zurueck_auf_die_vorgabe(angemeldet):
+    angemeldet.sende("/api/programm", {"herde": "H1", "programm": "VETO_PONDEUSE"})
+    angemeldet.sende("/api/programm", {"herde": "H1", "programm": None})
+    bild = angemeldet.hole(f"/api/tagesbild?herde=H1&stichtag={STICHTAG}")
+    assert bild["programmId"] == "IVOGRAIN_PONDEUSE"
+
+
+def test_der_stall_darf_das_programm_nicht_wechseln(dienst):
+    """Ein Programmwechsel verschiebt Impftermine — das ist keine Stallarbeit."""
+    stall = Sitzung(dienst, "stall")
+    with pytest.raises(HTTPError) as fehler:
+        stall.sende("/api/programm", {"herde": "H1", "programm": "VETO_PONDEUSE"})
+    assert fehler.value.code == 403
+
+
+def test_ein_unpassendes_programm_wird_abgewiesen(angemeldet):
+    with pytest.raises(HTTPError) as fehler:
+        angemeldet.sende("/api/programm", {"herde": "H1", "programm": "IVOGRAIN_CHAIR"})
+    assert fehler.value.code == 400
+
+
+def test_der_nachbar_kann_mein_programm_nicht_wechseln(dienst):
+    nachbar = Sitzung(dienst, "nachbar")
+    nachbar.sende("/api/programm", {"herde": "H1", "programm": "VETO_PONDEUSE"})
+    meins = Sitzung(dienst, "leitung")
+    bild = meins.hole(f"/api/tagesbild?herde=H1&stichtag={STICHTAG}")
+    assert bild["programmId"] == "IVOGRAIN_PONDEUSE"
+
+
+def test_die_gegenueberstellung_kommt_gerechnet(angemeldet):
+    daten = angemeldet.hole("/api/vergleich?links=IVOGRAIN_PONDEUSE&rechts=VETO_PONDEUSE")
+    gumboro = next(z for z in daten["zeilen"] if z["thema"] == "Impfung: Gumboro")
+    assert gumboro["links"] == "J7 · J12 · J17"
+    assert gumboro["rechts"] == "J7 · J14 · J21"
+
+
+def test_ein_unbekanntes_blatt_wird_nicht_verglichen(angemeldet):
+    with pytest.raises(HTTPError) as fehler:
+        angemeldet.hole("/api/vergleich?links=IVOGRAIN_PONDEUSE&rechts=GIBT_ES_NICHT")
+    assert fehler.value.code == 400
+
+
+def test_der_tierarzt_haengt_am_betrieb_nicht_am_blatt(angemeldet, dienst):
+    angemeldet.sende(
+        "/api/tierarzt",
+        {"name": "Dr. Beispiel", "praxis": "Praxis X", "telefon": "0000"},
+    )
+    bild = angemeldet.hole(f"/api/tagesbild?herde=H1&stichtag={STICHTAG}")
+    assert bild["tierarzt"]["name"] == "Dr. Beispiel"
+    # Der Nachbar sieht ihn nicht.
+    nachbar = Sitzung(dienst, "nachbar")
+    fremd = nachbar.hole(f"/api/tagesbild?herde=H1&stichtag={STICHTAG}")
+    assert fremd["tierarzt"] is None
+
+
+def test_ohne_namen_kein_tierarzt(angemeldet):
+    with pytest.raises(HTTPError) as fehler:
+        angemeldet.sende("/api/tierarzt", {"telefon": "0000"})
+    assert fehler.value.code == 400

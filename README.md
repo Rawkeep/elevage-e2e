@@ -14,8 +14,14 @@ nichts.
 python3 -m elevage.cli demo                       # drei Szenarien, ohne Datenbank
 
 python3 -m elevage.cli einstallen --betrieb hof --herde H1 --name "Stall Nord" \
-    --tierart LEGEHENNE --einstall 2026-03-02 --tiere 1200
+    --tierart LEGEHENNE --einstall 2026-03-02 --tiere 1200 [--programm VETO_PONDEUSE]
 python3 -m elevage.cli herden --betrieb hof
+
+python3 -m elevage.cli programm                              # welche Blätter es gibt
+python3 -m elevage.cli programm --zeigen VETO_PONDEUSE       # ein Blatt ganz
+python3 -m elevage.cli programm --vergleich IVOGRAIN_PONDEUSE VETO_PONDEUSE
+python3 -m elevage.cli programm --betrieb hof --herde H1 --waehlen VETO_PONDEUSE
+python3 -m elevage.cli tierarzt --betrieb hof --name "Dr. Beispiel" --telefon 0000
 python3 -m elevage.cli tagesbild --betrieb hof --herde H1 --stichtag 2026-03-06 --mischen 500 --vorrat 400
 python3 -m elevage.cli quittieren --betrieb hof --herde H1 \
     --schritt PONDEUSE_J7_GUMBORO_1 --am 2026-03-08 --durch Kofi --lot LOT-4711
@@ -47,7 +53,8 @@ ein Wächter-Job daran hängen, ohne die Ausgabe zu lesen.
 | Modul | Aufgabe |
 |---|---|
 | `models.py` | Der Vertrag (Pydantic, JSON bleibt camelCase) — Änderungen hier zuerst |
-| `programme.py` | Die beiden Prophylaxe-Programme als Daten, verbatim von den Blättern |
+| `programme.py` | Die Prophylaxe-Blätter als Daten, verbatim; wählbar je Herde |
+| `vergleich.py` | Zwei Blätter gegenübergestellt — gerechnet, nicht formuliert |
 | `rezepte.py` | Die drei Futter-Rezepturen + Artikelstamm |
 | `plan.py` | Vorlage + Herde = Termine mit echten Daten, Ampel, Quittungen |
 | `mischung.py` | Rezept × Chargengröße, mit Summenprobe und Sperre |
@@ -356,6 +363,41 @@ und der Betrieb in Europa, ist abends ab 22 Uhr schon der Folgetag.
 `ELEVAGE_ZEITZONE=Europe/Berlin` stellt den Betriebstag gerade; Togo liegt
 auf UTC und braucht nichts.
 
+## Zwei Tierärzte, zwei Blätter — die Wahl gehört der Herde
+
+Für Legehennen liegen **zwei vollständige Prophylaxe-Programme** vor, und
+sie widersprechen sich an fast jedem Datum:
+
+| | IVOGRAIN | VETO-NEGOCES |
+|---|---|---|
+| Gumboro | J7 · J12 · J17 | J7 · **J14** · **J21** |
+| ND + IB lebend | J1 · J10 · J21 | **J5** · **J25** |
+| Pocken | J29–35, Auffr. J64–70 | **J42**, ohne Auffrischung |
+| Entwurmung | J57–63 · J85–91 | **J50 · J88 · J124** |
+| Coryza | J71–77, Auffr. J106–112 | **J84 · J120** |
+| Débecquage | J43–49 | **fehlt** |
+| ND/IB-Auffrischung danach | **alle 30 Tage** | **alle 6 Monate** |
+
+Zusammenlegen wäre eine Entscheidung — und zwar eine tierärztliche. Deshalb
+steht jedes Blatt vollständig da, die Wahl hängt an der Herde
+(`Herde.programm_id`, `NULL` = Vorgabe der Tierart), und
+`elevage programm --vergleich` rechnet die Gegenüberstellung aus den Daten
+statt sie zu behaupten. Welches gilt, entscheidet der Betrieb.
+
+Drei Eigenheiten des VETO-Blattes haben eigene Begriffe bekommen:
+
+- **Pause** (`Kategorie.PAUSE`): „EAU SIMPLE" heißt *ausdrücklich nichts
+  geben*. Das steht im Stand und ist nichts zum Abhaken — sonst quittiert
+  jemand fünfzig Tage lang einfaches Wasser. Als Termin existiert es
+  trotzdem, sonst sähe niemand, dass die Lücke gewollt ist.
+- **Anti-Stress** und **Leberschutz** sind eigene Kategorien, keine
+  Vitamine. Das Blatt taktet sie systematisch um jeden Eingriff herum.
+- **Offenes Ende** (`OFFENES_ENDE`): „J128 à la Réforme" nennt kein Datum.
+  Eine Zahl statt `None`, damit die Planrechnung keine Sonderfälle bekommt.
+
+Der **Tierarzt** hängt am Betrieb, nicht am Blatt (`elevage tierarzt`) — der
+Betrieb wechselt den Arzt, nicht das Programm.
+
 ## Regeln, die nicht gebrochen werden
 
 1. **Der Stichtag kommt herein, nie aus der Uhr.** Sonst ist kein Lauf
@@ -384,6 +426,13 @@ auf UTC und braucht nichts.
     jeder Posten trägt seine Herkunft.
 12. **Kein Ausgleich ohne Prüfvermerk.** Eine geglättete Zahl, die niemand
     mehr nachsieht, ist schlimmer als eine, die anhält.
+13. **Zwei Blätter werden nie zu einem.** Widersprechen sich zwei
+    Prophylaxe-Programme, stehen beide vollständig da und die Herde wählt.
+    Eine gerechnete Mischform wäre eine tierärztliche Entscheidung durch
+    Software.
+14. **Ein Programmwechsel fasst die Historie nicht an.** Abgehakt bleibt
+    abgehakt; was das neue Blatt nicht kennt, verschwindet aus der Liste.
+    Und wechseln darf nur die Leitung — es verschiebt Impftermine.
 
 ## Befunde aus den Quellblättern
 
@@ -398,9 +447,13 @@ auf UTC und braucht nichts.
 | Futterphasen überlappen an den Rändern (0–8/8–21, 8–21/ab 21) | `rezepte.py` |
 | Für Masthühner liegt **kein** Futterblatt vor | `rezepte.py` |
 | Notfall-Dosis: 0,5 g/l (Masthuhn) vs. 1 g/l (Junghenne) — zwei Zahlen für dasselbe Mittel | `notfall.py` |
+| VETO-Blatt J17–J19: Überschrift „ANTI-STRESS", Präparat ein Antikokzidium | `programme.py` |
+| VETO-Blatt J120 schreibt „CORYMINE", J84 „CORYMUNE" | `programme.py` |
+| VETO-Blatt J125–J127 nennt Anti-Stress **und** „EAU SIMPLE" in einer Zeile | `programme.py` |
+| VETO-Blatt endet „à la Réforme" — kein Datum | `programme.py` |
 
-Quelle der Prophylaxe-Programme: IVOGRAIN. Quelle der Rezepturen:
-handschriftliche Betriebsblätter.
+Quellen der Prophylaxe-Blätter: **IVOGRAIN** und **VETO-NEGOCES / TCHA AGGRO
+CENTER (Dr. BANGUE)**. Quelle der Rezepturen: handschriftliche Betriebsblätter.
 
 ## Nach jeder Änderung
 

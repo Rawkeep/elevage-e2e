@@ -14,13 +14,26 @@ Woche w umfasst die Tage 7*(w-1)+1 bis 7*w.
 
 from __future__ import annotations
 
-from elevage.models import Dauerregel, Kategorie, Schritt, Tierart, Verabreichung
+from elevage.models import (
+    OFFENES_ENDE,
+    Dauerregel,
+    Kategorie,
+    Programm,
+    Schritt,
+    Tierart,
+    Verabreichung,
+)
 
 # --- Tuning, keine Magic Numbers im Code --------------------------------
 VORLAUF_IMPFSTOFF_TAGE = 3
 """Impfstoff muss so viele Tage vor dem Termin bestellt/geholt sein."""
 
 VORLAUF_MEDIKAMENT_TAGE = 2
+
+IVOGRAIN = "IVOGRAIN"
+VETO = "VETO-NEGOCES"
+"""Die beiden Herausgeber. Steht an jedem Schritt, damit im Tagesbild
+sichtbar bleibt, wessen Blatt gerade gilt."""
 
 
 def woche(w: int) -> tuple[int, int]:
@@ -632,5 +645,500 @@ WIEDERKEHREND_LEGEPHASE: list[Dauerregel] = [
 ]
 
 
-def programm(tierart: Tierart) -> list[Schritt]:
-    return PROGRAMM_MASTHUHN if tierart is Tierart.MASTHUHN else PROGRAMM_LEGEHENNE
+# =======================================================================
+# Zweites Blatt für dieselbe Tierart: VETO-NEGOCES / TCHA AGGRO CENTER.
+#
+# Es ist kein Nachtrag zum IVOGRAIN-Blatt, sondern ein eigener Plan, der
+# an fast jedem Datum etwas anderes sagt (Gumboro J14/J21 statt J12/J17,
+# ND-Auffrischung alle sechs Monate statt alle dreißig Tage). Zusammen-
+# legen wäre eine Entscheidung — die trifft der Betrieb, nicht der Code.
+# Deshalb steht es vollständig daneben und wird je Herde gewählt.
+#
+# Abkürzungen des Blattes: EB = Eau de Boisson (Trinkwasser),
+# IM = Intra Musculaire, NEW L = Lasota, BRON = H120,
+# IBird = Variante der infektiösen Bronchitis, UNI L = HB1.
+# =======================================================================
+
+VITAFLASH = ["VITAFLASH", "POWERVIT"]
+"""Die Anti-Stress-/Vitamin-Alternative, die das Blatt durchgehend nennt."""
+
+LEBERSCHUTZ_MITTEL = ["HEPAROL PLUS", "SEQUTONIC PLUS"]
+ANTIKOKZIDIUM_MITTEL = ["COX B3", "AMPROLIUM"]
+ENTWURMUNG_MITTEL = ["LEVASOL", "PIPER DEWORMER"]
+
+
+def _stress(von: int, bis: int, nummer: int, praeparate: list[str] | None = None) -> Schritt:
+    """Anti-Stress-Gabe im Trinkwasser — das Blatt setzt sie um jeden
+    Eingriff herum, deshalb ein Bauer statt zwanzig Wiederholungen."""
+    return Schritt(
+        key=f"VETO_J{von}_ANTISTRESS_{nummer}",
+        tierart=Tierart.LEGEHENNE,
+        von_tag=von,
+        bis_tag=bis,
+        titel="Anti-Stress ins Trinkwasser",
+        kategorie=Kategorie.ANTI_STRESS,
+        verabreichung=Verabreichung.TRINKWASSER,
+        praeparate=list(praeparate or VITAFLASH),
+        vorlauf_tage=VORLAUF_MEDIKAMENT_TAGE,
+        quelle=VETO,
+    )
+
+
+def _pause(von: int, bis: int, nummer: int) -> Schritt:
+    """„EAU SIMPLE“ — einfaches Wasser, ausdrücklich nichts dazu."""
+    return Schritt(
+        key=f"VETO_J{von}_EAU_SIMPLE_{nummer}",
+        tierart=Tierart.LEGEHENNE,
+        von_tag=von,
+        bis_tag=bis,
+        titel="Einfaches Wasser — nichts zugeben",
+        kategorie=Kategorie.PAUSE,
+        verabreichung=Verabreichung.TRINKWASSER,
+        hinweis="Das Blatt schreibt hier ausdrücklich „EAU SIMPLE“ — die Lücke ist gewollt.",
+        quelle=VETO,
+    )
+
+
+PROGRAMM_LEGEHENNE_VETO: list[Schritt] = [
+    Schritt(
+        key="VETO_J1_ANTISTRESS",
+        tierart=Tierart.LEGEHENNE,
+        von_tag=1,
+        bis_tag=4,
+        titel="Anti-Stress zum Einstallen",
+        kategorie=Kategorie.ANTI_STRESS,
+        verabreichung=Verabreichung.TRINKWASSER,
+        praeparate=["VITAFLASH", "HEPAROL PLUS"],
+        dosis_je_liter="VITAFLASH 1 g/l + Zuckerwasser 50 g/l — oder HEPAROL PLUS 2 ml/l",
+        vorlauf_tage=VORLAUF_MEDIKAMENT_TAGE,
+        quelle=VETO,
+    ),
+    Schritt(
+        key="VETO_J5_ND_IB",
+        tierart=Tierart.LEGEHENNE,
+        von_tag=5,
+        bis_tag=5,
+        titel="Newcastle + Bronchite infectieuse impfen",
+        kategorie=Kategorie.IMPFUNG,
+        verabreichung=Verabreichung.TRINKWASSER,
+        praeparate=["CEVAC BIL", "CEVAC BRON (H120) + UNI L (HB1)"],
+        vorlauf_tage=VORLAUF_IMPFSTOFF_TAGE,
+        quelle=VETO,
+    ),
+    Schritt(
+        key="VETO_J6_VITAMINE",
+        tierart=Tierart.LEGEHENNE,
+        von_tag=6,
+        bis_tag=6,
+        titel="Vitamine nach der Impfung",
+        kategorie=Kategorie.VITAMINE,
+        verabreichung=Verabreichung.TRINKWASSER,
+        praeparate=list(VITAFLASH),
+        vorlauf_tage=VORLAUF_MEDIKAMENT_TAGE,
+        quelle=VETO,
+    ),
+    Schritt(
+        key="VETO_J7_GUMBORO_1",
+        tierart=Tierart.LEGEHENNE,
+        von_tag=7,
+        bis_tag=7,
+        titel="1. Gumboro-Impfung",
+        kategorie=Kategorie.IMPFUNG,
+        verabreichung=Verabreichung.TRINKWASSER,
+        praeparate=["GUMBO L", "IBD inter"],
+        vorlauf_tage=VORLAUF_IMPFSTOFF_TAGE,
+        quelle=VETO,
+    ),
+    _pause(8, 12, 1),
+    Schritt(
+        key="VETO_J13_VITAMINE",
+        tierart=Tierart.LEGEHENNE,
+        von_tag=13,
+        bis_tag=13,
+        titel="Vitamine vor der 2. Gumboro-Impfung",
+        kategorie=Kategorie.VITAMINE,
+        verabreichung=Verabreichung.TRINKWASSER,
+        praeparate=list(VITAFLASH),
+        vorlauf_tage=VORLAUF_MEDIKAMENT_TAGE,
+        quelle=VETO,
+    ),
+    Schritt(
+        key="VETO_J14_GUMBORO_2",
+        tierart=Tierart.LEGEHENNE,
+        von_tag=14,
+        bis_tag=14,
+        titel="2. Gumboro-Impfung",
+        kategorie=Kategorie.IMPFUNG,
+        verabreichung=Verabreichung.TRINKWASSER,
+        praeparate=["CEVAC IBDL", "IBD PLUS"],
+        vorlauf_tage=VORLAUF_IMPFSTOFF_TAGE,
+        quelle=VETO,
+    ),
+    _stress(15, 16, 1),
+    Schritt(
+        key="VETO_J17_ANTIKOKZIDIUM",
+        tierart=Tierart.LEGEHENNE,
+        von_tag=17,
+        bis_tag=19,
+        titel="Antikokzidium über 3 Tage",
+        kategorie=Kategorie.ANTIKOKZIDIUM,
+        verabreichung=Verabreichung.TRINKWASSER,
+        praeparate=list(ANTIKOKZIDIUM_MITTEL),
+        vorlauf_tage=VORLAUF_MEDIKAMENT_TAGE,
+        quelle=VETO,
+        issues=[
+            "Die Zeile ist auf dem Blatt mit "
+            "„ANTI-STRESS (EB)“ überschrieben, nennt aber COX B3 bzw. AMPROLIUM — "
+            "beides Antikokzidia. Hier nach dem Präparat eingeordnet, "
+            "Überschrift des Originals prüfen."
+        ],
+    ),
+    _stress(20, 20, 2),
+    Schritt(
+        key="VETO_J21_GUMBORO_3",
+        tierart=Tierart.LEGEHENNE,
+        von_tag=21,
+        bis_tag=21,
+        titel="3. Gumboro-Impfung",
+        kategorie=Kategorie.IMPFUNG,
+        verabreichung=Verabreichung.TRINKWASSER,
+        praeparate=["CEVAC IBDL", "IBD PLUS"],
+        vorlauf_tage=VORLAUF_IMPFSTOFF_TAGE,
+        quelle=VETO,
+    ),
+    Schritt(
+        key="VETO_J22_LEBERSCHUTZ",
+        tierart=Tierart.LEGEHENNE,
+        von_tag=22,
+        bis_tag=24,
+        titel="Leberschutz über 3 Tage",
+        kategorie=Kategorie.LEBERSCHUTZ,
+        verabreichung=Verabreichung.TRINKWASSER,
+        praeparate=list(LEBERSCHUTZ_MITTEL),
+        vorlauf_tage=VORLAUF_MEDIKAMENT_TAGE,
+        quelle=VETO,
+    ),
+    Schritt(
+        key="VETO_J25_ND_IB",
+        tierart=Tierart.LEGEHENNE,
+        von_tag=25,
+        bis_tag=25,
+        titel="Newcastle + Bronchite auffrischen",
+        kategorie=Kategorie.IMPFUNG,
+        verabreichung=Verabreichung.TRINKWASSER,
+        praeparate=[
+            "CEVAC NEW L (Lasota) + CEVAC BRON",
+            "CEVAC NEW L + CEVAC IBird",
+        ],
+        vorlauf_tage=VORLAUF_IMPFSTOFF_TAGE,
+        quelle=VETO,
+    ),
+    _stress(26, 29, 3),
+    _pause(30, 34, 2),
+    Schritt(
+        key="VETO_J35_ND",
+        tierart=Tierart.LEGEHENNE,
+        von_tag=35,
+        bis_tag=35,
+        titel="Newcastle auffrischen",
+        kategorie=Kategorie.IMPFUNG,
+        verabreichung=Verabreichung.TRINKWASSER,
+        praeparate=["CEVAC NEW L"],
+        vorlauf_tage=VORLAUF_IMPFSTOFF_TAGE,
+        quelle=VETO,
+    ),
+    _stress(36, 38, 4),
+    _pause(39, 40, 3),
+    _stress(41, 41, 5),
+    Schritt(
+        key="VETO_J42_POCKEN",
+        tierart=Tierart.LEGEHENNE,
+        von_tag=42,
+        bis_tag=42,
+        titel="Pocken-Impfung in die Flügelfalte (transfixion alaire)",
+        kategorie=Kategorie.IMPFUNG,
+        verabreichung=Verabreichung.FLUEGELFALTE,
+        praeparate=["CEVAC FPL", "DIFTOSEC", "AVIPOX"],
+        vorlauf_tage=VORLAUF_IMPFSTOFF_TAGE,
+        quelle=VETO,
+    ),
+    _stress(43, 45, 6),
+    Schritt(
+        key="VETO_J46_ANTIKOKZIDIUM",
+        tierart=Tierart.LEGEHENNE,
+        von_tag=46,
+        bis_tag=48,
+        titel="Antikokzidium über 3 Tage",
+        kategorie=Kategorie.ANTIKOKZIDIUM,
+        verabreichung=Verabreichung.TRINKWASSER,
+        praeparate=["AMPROLIUM", "COX B3"],
+        vorlauf_tage=VORLAUF_MEDIKAMENT_TAGE,
+        quelle=VETO,
+    ),
+    _stress(49, 49, 7),
+    Schritt(
+        key="VETO_J50_ENTWURMUNG",
+        tierart=Tierart.LEGEHENNE,
+        von_tag=50,
+        bis_tag=50,
+        titel="Innere Entwurmung",
+        kategorie=Kategorie.ENTWURMUNG,
+        verabreichung=Verabreichung.TRINKWASSER,
+        praeparate=["LEVASOLE", "PIPER DEWORMER"],
+        vorlauf_tage=VORLAUF_MEDIKAMENT_TAGE,
+        quelle=VETO,
+    ),
+    Schritt(
+        key="VETO_J51_LEBERSCHUTZ",
+        tierart=Tierart.LEGEHENNE,
+        von_tag=51,
+        bis_tag=55,
+        titel="Leberschutz über 5 Tage",
+        kategorie=Kategorie.LEBERSCHUTZ,
+        verabreichung=Verabreichung.TRINKWASSER,
+        praeparate=list(LEBERSCHUTZ_MITTEL),
+        vorlauf_tage=VORLAUF_MEDIKAMENT_TAGE,
+        quelle=VETO,
+    ),
+    _stress(56, 58, 8),
+    _pause(59, 80, 4),
+    _stress(81, 83, 9),
+    Schritt(
+        key="VETO_J84_CORYZA",
+        tierart=Tierart.LEGEHENNE,
+        von_tag=84,
+        bis_tag=84,
+        titel="Coryza (A, B, C) + Salmonellose, Injektion",
+        kategorie=Kategorie.IMPFUNG,
+        verabreichung=Verabreichung.INJEKTION,
+        praeparate=["CORYMUNE 4 K"],
+        hinweis="Intramuskulär (IM)",
+        vorlauf_tage=VORLAUF_IMPFSTOFF_TAGE,
+        quelle=VETO,
+    ),
+    _stress(85, 87, 10),
+    Schritt(
+        key="VETO_J88_ENTWURMUNG",
+        tierart=Tierart.LEGEHENNE,
+        von_tag=88,
+        bis_tag=88,
+        titel="Innere Entwurmung",
+        kategorie=Kategorie.ENTWURMUNG,
+        verabreichung=Verabreichung.TRINKWASSER,
+        praeparate=list(ENTWURMUNG_MITTEL),
+        vorlauf_tage=VORLAUF_MEDIKAMENT_TAGE,
+        quelle=VETO,
+    ),
+    _stress(89, 91, 11),
+    Schritt(
+        key="VETO_J92_ANTIKOKZIDIUM",
+        tierart=Tierart.LEGEHENNE,
+        von_tag=92,
+        bis_tag=96,
+        titel="Antikokzidium über 5 Tage",
+        kategorie=Kategorie.ANTIKOKZIDIUM,
+        verabreichung=Verabreichung.TRINKWASSER,
+        praeparate=list(ANTIKOKZIDIUM_MITTEL),
+        vorlauf_tage=VORLAUF_MEDIKAMENT_TAGE,
+        quelle=VETO,
+    ),
+    Schritt(
+        key="VETO_J97_LEBERSCHUTZ",
+        tierart=Tierart.LEGEHENNE,
+        von_tag=97,
+        bis_tag=103,
+        titel="Leberschutz über 7 Tage",
+        kategorie=Kategorie.LEBERSCHUTZ,
+        verabreichung=Verabreichung.TRINKWASSER,
+        praeparate=list(LEBERSCHUTZ_MITTEL),
+        vorlauf_tage=VORLAUF_MEDIKAMENT_TAGE,
+        quelle=VETO,
+    ),
+    _pause(104, 116, 5),
+    _stress(117, 119, 12),
+    Schritt(
+        key="VETO_J120_KOMBI",
+        tierart=Tierart.LEGEHENNE,
+        von_tag=120,
+        bis_tag=120,
+        titel=(
+            "Coryza + Salmonellose + Enteritis + Newcastle + Bronchite + Legedepression, Injektion"
+        ),
+        kategorie=Kategorie.IMPFUNG,
+        verabreichung=Verabreichung.INJEKTION,
+        praeparate=["CORYMUNE 7 K", "CORYMUNE 4 K + NDIBEDSK (new bron trica)"],
+        hinweis="Intramuskulär (IM) — die letzte große Gabe vor der Legephase",
+        vorlauf_tage=VORLAUF_IMPFSTOFF_TAGE,
+        quelle=VETO,
+        issues=[
+            "Das Blatt schreibt hier „CORYMINE“, an J84 aber "
+            "„CORYMUNE“ — vermutlich dasselbe Mittel, Schreibweise am Original prüfen."
+        ],
+    ),
+    _stress(121, 123, 13),
+    Schritt(
+        key="VETO_J124_ENTWURMUNG",
+        tierart=Tierart.LEGEHENNE,
+        von_tag=124,
+        bis_tag=124,
+        titel="Entwurmung innen und außen",
+        kategorie=Kategorie.ENTWURMUNG,
+        verabreichung=Verabreichung.TRINKWASSER,
+        praeparate=["KEPROMEC ORAL", "LEVASOL + äußeres Entwurmungsmittel"],
+        vorlauf_tage=VORLAUF_MEDIKAMENT_TAGE,
+        quelle=VETO,
+    ),
+    Schritt(
+        key="VETO_J125_ANTISTRESS",
+        tierart=Tierart.LEGEHENNE,
+        von_tag=125,
+        bis_tag=127,
+        titel="Anti-Stress ins Trinkwasser",
+        kategorie=Kategorie.ANTI_STRESS,
+        verabreichung=Verabreichung.TRINKWASSER,
+        praeparate=list(VITAFLASH),
+        vorlauf_tage=VORLAUF_MEDIKAMENT_TAGE,
+        quelle=VETO,
+        issues=[
+            "Die Zeile nennt VITAFLASH/POWERVIT UND „EAU SIMPLE“ "
+            "nebeneinander — beides zugleich geht nicht. Hier als Anti-Stress geführt."
+        ],
+    ),
+    Schritt(
+        key="VETO_J128_FUEHRUNG",
+        tierart=Tierart.LEGEHENNE,
+        von_tag=128,
+        bis_tag=OFFENES_ENDE,
+        titel="Gute Stallführung bis zur Ausstallung (Réforme)",
+        kategorie=Kategorie.HYGIENE,
+        verabreichung=Verabreichung.HANDGRIFF,
+        hinweis="Ab hier trägt die Stallführung; die Entwurmung läuft alle zwei Monate weiter.",
+        quelle=VETO,
+        issues=[
+            "Das Blatt endet mit „à la Réforme“ und nennt kein "
+            "Datum — der Schritt läuft offen bis zur Ausstallung."
+        ],
+    ),
+]
+
+
+WIEDERKEHREND_VETO: list[Dauerregel] = [
+    Dauerregel(
+        key="VETO_DAUER_ENTWURMUNG",
+        titel="Entwurmung (Präparate abwechseln)",
+        kategorie=Kategorie.ENTWURMUNG,
+        verabreichung=Verabreichung.TRINKWASSER,
+        praeparate=["PIPER DEWORMER", "KEPROMEC ORAL"],
+        intervall_tage=60,
+        hinweis="„Penser au déparasitage à chaque deux mois“ — ab Tag 128",
+        ab_tag=128,
+    ),
+    Dauerregel(
+        key="VETO_DAUER_ND_IB",
+        titel="Newcastle + Bronchite infectieuse auffrischen",
+        kategorie=Kategorie.IMPFUNG,
+        verabreichung=Verabreichung.TRINKWASSER,
+        praeparate=["CEVAC NEW L", "CEVAC BRON (H120)"],
+        intervall_tage=180,
+        hinweis="„Tous les 6 mois“ — deutlich seltener als im IVOGRAIN-Blatt (dort alle 30 Tage)",
+        ab_tag=128,
+    ),
+]
+
+
+HINWEISE_VETO = [
+    "Der Zugang zum Stall ist streng auf Sie und Ihren Tierarzt beschränkt.",
+    "Geimpft wird nur auf gesunde Tiere.",
+    "Alle sechs Monate sind Auffrischungen gegen Newcastle und infektiöse Bronchitis nötig.",
+    "Der Stall muss gut belüftet sein; Staub vermeiden.",
+    "Gleichwertige Präparate vom Markt sind erlaubt — fragen Sie Ihren Tierarzt.",
+    "Bei jeder Verhaltensänderung der Tiere den Tierarzt anrufen.",
+]
+
+
+# --- Die Blätter als Ganzes, wählbar je Herde ---------------------------
+
+HINWEISE_IVOGRAIN = [
+    "Impfstoffe gekühlt halten und innerhalb von zwei Stunden verbrauchen.",
+    "Vor jeder Trinkwasserimpfung zwei Stunden dursten lassen.",
+    "Nur gesunde Tiere impfen.",
+]
+
+PROGRAMME: list[Programm] = [
+    Programm(
+        programm_id="IVOGRAIN_CHAIR",
+        titel="Masthuhn — IVOGRAIN",
+        tierart=Tierart.MASTHUHN,
+        quelle=IVOGRAIN,
+        herausgeber="IVOGRAIN",
+        schritte=PROGRAMM_MASTHUHN,
+        hinweise=HINWEISE_IVOGRAIN,
+        vorgabe=True,
+    ),
+    Programm(
+        programm_id="IVOGRAIN_PONDEUSE",
+        titel="Legehenne — IVOGRAIN",
+        tierart=Tierart.LEGEHENNE,
+        quelle=IVOGRAIN,
+        herausgeber="IVOGRAIN",
+        schritte=PROGRAMM_LEGEHENNE,
+        dauerregeln=WIEDERKEHREND_LEGEPHASE,
+        hinweise=HINWEISE_IVOGRAIN,
+        vorgabe=True,
+    ),
+    Programm(
+        programm_id="VETO_PONDEUSE",
+        titel="Legehenne — VETO-NEGOCES",
+        tierart=Tierart.LEGEHENNE,
+        quelle=VETO,
+        herausgeber="VETO-NEGOCES / TCHA AGGRO CENTER, Dr. BANGUE",
+        schritte=PROGRAMM_LEGEHENNE_VETO,
+        dauerregeln=WIEDERKEHREND_VETO,
+        hinweise=HINWEISE_VETO,
+    ),
+]
+
+
+def alle_programme(tierart: Tierart | None = None) -> list[Programm]:
+    """Alle Blätter, optional auf eine Tierart gefiltert."""
+    return [p for p in PROGRAMME if tierart is None or p.tierart is tierart]
+
+
+def vorgabe_programm(tierart: Tierart) -> Programm:
+    """Das Blatt, das gilt, solange niemand gewählt hat."""
+    for p in PROGRAMME:
+        if p.tierart is tierart and p.vorgabe:
+            return p
+    raise KeyError(f"Kein Vorgabe-Programm für {tierart.value}")
+
+
+def programm(tierart: Tierart, programm_id: str | None = None) -> Programm:
+    """Das Blatt einer Herde.
+
+    Eine unbekannte oder zur Tierart unpassende Wahl fällt auf die Vorgabe
+    zurück — still zu scheitern hieße, eine Herde ohne Plan zu führen. Dass
+    es passiert ist, meldet `programm_konflikt`.
+    """
+    if programm_id:
+        for p in PROGRAMME:
+            if p.programm_id == programm_id and p.tierart is tierart:
+                return p
+    return vorgabe_programm(tierart)
+
+
+def programm_konflikt(tierart: Tierart, programm_id: str | None) -> str | None:
+    """Befund, wenn die Wahl nicht zur Tierart passt — sonst None."""
+    if not programm_id:
+        return None
+    treffer = [p for p in PROGRAMME if p.programm_id == programm_id]
+    if not treffer:
+        return (
+            f"Programm „{programm_id}“ ist unbekannt — es gilt „{vorgabe_programm(tierart).titel}“."
+        )
+    if treffer[0].tierart is not tierart:
+        return (
+            f"Programm „{treffer[0].titel}“ gilt für {treffer[0].tierart.value}, "
+            f"die Herde ist {tierart.value} — es gilt "
+            f"„{vorgabe_programm(tierart).titel}“."
+        )
+    return None

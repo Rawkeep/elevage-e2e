@@ -18,6 +18,7 @@ from elevage.models import (
     Bestandsbewegung,
     Ereignis,
     Herde,
+    Kategorie,
     Mischauftrag,
     Praeparat,
     Pruefvermerk,
@@ -25,6 +26,7 @@ from elevage.models import (
     Rezeptanpassung,
     Tagesbild,
     Termin,
+    Tierarzt,
     Verzehrkurve,
 )
 from elevage.plan import (
@@ -35,6 +37,7 @@ from elevage.plan import (
     offene_issues,
     schritte_fuer,
 )
+from elevage.programme import programm
 from elevage.rezepte import KEIN_MASTFUTTER, PHASEN_UEBERLAPPUNG, rezept_fuer
 from elevage.verzehr import prognose, richtwert
 from elevage.wartezeit import berechne_sperren
@@ -54,23 +57,35 @@ def rechne(
     vermerke: list[Pruefvermerk] | None = None,
     praeparate: list[Praeparat] | None = None,
     bewegungen: list[Bestandsbewegung] | None = None,
+    tierarzt: Tierarzt | None = None,
 ) -> Tagesbild:
     alter = alter_in_tagen(herde, stichtag)
     wochen = alter_in_wochen(alter)
+    blatt = programm(herde.tierart, herde.programm_id)
     stand = rechne_bestand(herde, stichtag, list(bewegungen or []))
     termine = baue_termine(herde, stichtag, quittungen, ereignisse, einstellungen)
 
-    ueberfaellig = [t for t in termine if t.ampel is Ampel.ROT]
-    heute = [t for t in termine if t.ampel is Ampel.GELB]
-    demnaechst = [t for t in termine if t.ampel is Ampel.GRUEN and 0 < t.tage_bis <= VORSCHAU_TAGE]
-    erledigt = [t for t in termine if t.ampel is Ampel.ERLEDIGT]
+    # Eine Pause ist eine Anweisung, keine Aufgabe: „einfaches Wasser“ steht
+    # im Stand und wird nicht abgehakt. Sie aus den Terminen zu lassen wäre
+    # falsch — dann sähe niemand, dass die Lücke gewollt ist.
+    ruhe = [
+        t
+        for t in termine
+        if t.kategorie is Kategorie.PAUSE and t.faellig_von <= stichtag <= t.faellig_bis
+    ]
+    arbeit = [t for t in termine if t.kategorie is not Kategorie.PAUSE]
+
+    ueberfaellig = [t for t in arbeit if t.ampel is Ampel.ROT]
+    heute = [t for t in arbeit if t.ampel is Ampel.GELB]
+    demnaechst = [t for t in arbeit if t.ampel is Ampel.GRUEN and 0 < t.tage_bis <= VORSCHAU_TAGE]
+    erledigt = [t for t in arbeit if t.ampel is Ampel.ERLEDIGT]
 
     vorlauf = {
         s.key: s.vorlauf_tage for s in schritte_fuer(herde, stichtag, ereignisse, einstellungen)
     }
     bestellen = [
         t
-        for t in termine
+        for t in arbeit
         if t.ampel is Ampel.GRUEN
         and vorlauf.get(t.schritt_key, 3) > 0
         and 0 < t.tage_bis <= vorlauf.get(t.schritt_key, 3)
@@ -129,17 +144,21 @@ def rechne(
         herde=herde,
         alter_tage=alter,
         alter_wochen=wochen,
+        programm_id=blatt.programm_id,
+        programm_titel=blatt.titel,
         phase=phase,
         ueberfaellig=ueberfaellig,
         heute=heute,
         demnaechst=demnaechst,
         bestellen=bestellen,
         erledigt=erledigt,
+        ruhe=ruhe,
         vermerke=list(vermerke or []),
         sperren=sperren,
         bestand=stand,
         futter=futter,
         vorfaelle=meine_vorfaelle,
+        tierarzt=tierarzt,
         ampel=ampel,
         issues=issues,
     )

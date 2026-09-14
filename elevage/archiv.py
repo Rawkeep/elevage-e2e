@@ -34,6 +34,7 @@ from elevage.models import (
     Rolle,
     Sitzung,
     Tierart,
+    Tierarzt,
 )
 
 STANDARD_PFAD = Path(os.environ.get("ELEVAGE_DB", Path.home() / ".elevage" / "elevage.db"))
@@ -199,6 +200,25 @@ MIGRATIONEN: list[tuple[int, str]] = [
         CREATE INDEX bewegung_nach_herde ON bestandsbewegung (tenant_id, herde_id, am);
         """,
     ),
+    (
+        8,
+        """
+        -- Welches Prophylaxe-Blatt für diese Herde gilt. NULL heißt
+        -- „die Vorgabe der Tierart“ — bestehende Herden ändern damit
+        -- ihren Plan um kein Jota.
+        ALTER TABLE herde ADD COLUMN programm_id TEXT;
+
+        -- Der Tierarzt des Betriebs: einer je Mandant.
+        CREATE TABLE tierarzt (
+            tenant_id TEXT PRIMARY KEY,
+            name      TEXT NOT NULL,
+            praxis    TEXT,
+            telefon   TEXT,
+            email     TEXT,
+            hinweis   TEXT
+        );
+        """,
+    ),
 ]
 
 
@@ -262,13 +282,14 @@ def speichere_herde(conn: sqlite3.Connection, herde: Herde) -> None:
     """Anlegen oder aktualisieren — die Herde ist über (Mandant, Id) eindeutig."""
     conn.execute(
         "INSERT INTO herde (tenant_id, herde_id, name, tierart, einstalldatum, tierzahl,"
-        " hoher_virusdruck, spaete_schlachtung)"
-        " VALUES (?, ?, ?, ?, ?, ?, ?, ?)"
+        " hoher_virusdruck, spaete_schlachtung, programm_id)"
+        " VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)"
         " ON CONFLICT (tenant_id, herde_id) DO UPDATE SET"
         "  name=excluded.name, tierart=excluded.tierart,"
         "  einstalldatum=excluded.einstalldatum, tierzahl=excluded.tierzahl,"
         "  hoher_virusdruck=excluded.hoher_virusdruck,"
-        "  spaete_schlachtung=excluded.spaete_schlachtung",
+        "  spaete_schlachtung=excluded.spaete_schlachtung,"
+        "  programm_id=excluded.programm_id",
         (
             herde.tenant_id,
             herde.herde_id,
@@ -278,6 +299,7 @@ def speichere_herde(conn: sqlite3.Connection, herde: Herde) -> None:
             herde.tierzahl,
             int(herde.hoher_virusdruck),
             int(herde.spaete_schlachtung),
+            herde.programm_id,
         ),
     )
     conn.commit()
@@ -293,6 +315,7 @@ def _zu_herde(zeile: sqlite3.Row) -> Herde:
         tierzahl=zeile["tierzahl"],
         hoher_virusdruck=bool(zeile["hoher_virusdruck"]),
         spaete_schlachtung=bool(zeile["spaete_schlachtung"]),
+        programm_id=zeile["programm_id"],
     )
 
 
@@ -712,6 +735,41 @@ def praeparate_fuer(conn: sqlite3.Connection, tenant_id: str) -> list[Praeparat]
 
 
 # --- Benutzer und Sitzungen ---------------------------------------------
+
+
+def setze_tierarzt(conn: sqlite3.Connection, tierarzt: Tierarzt) -> None:
+    """Der Tierarzt des Betriebs — einer je Mandant, überschreibbar."""
+    conn.execute(
+        "INSERT INTO tierarzt (tenant_id, name, praxis, telefon, email, hinweis)"
+        " VALUES (?, ?, ?, ?, ?, ?)"
+        " ON CONFLICT (tenant_id) DO UPDATE SET"
+        "  name=excluded.name, praxis=excluded.praxis, telefon=excluded.telefon,"
+        "  email=excluded.email, hinweis=excluded.hinweis",
+        (
+            tierarzt.tenant_id,
+            tierarzt.name,
+            tierarzt.praxis,
+            tierarzt.telefon,
+            tierarzt.email,
+            tierarzt.hinweis,
+        ),
+    )
+    conn.commit()
+
+
+def tierarzt_fuer(conn: sqlite3.Connection, tenant_id: str) -> Tierarzt | None:
+    """None heißt: keiner hinterlegt. Kein Platzhalter, keine erfundene Nummer."""
+    zeile = conn.execute("SELECT * FROM tierarzt WHERE tenant_id = ?", (tenant_id,)).fetchone()
+    if zeile is None:
+        return None
+    return Tierarzt(
+        tenant_id=zeile["tenant_id"],
+        name=zeile["name"],
+        praxis=zeile["praxis"],
+        telefon=zeile["telefon"],
+        email=zeile["email"],
+        hinweis=zeile["hinweis"],
+    )
 
 
 def lege_benutzer_an(conn: sqlite3.Connection, benutzer: Benutzer, passwort_hash: str) -> None:

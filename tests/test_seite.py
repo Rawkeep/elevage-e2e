@@ -222,3 +222,53 @@ def test_selten_gebrauchtes_liegt_zugeklappt():
     """Abgang, Vorfall und die erledigten Schritte sind nicht das Tagesgeschäft."""
     assert SEITE.count("<summary>") >= 3
     assert "<details" in SEITE
+
+
+def test_das_geltende_blatt_steht_auf_der_seite():
+    """Wer abhakt, muss sehen, wessen Plan gerade gilt — zwei Blätter für
+    dieselbe Tierart lassen das sonst offen."""
+    assert 'id="programmtext"' in SEITE
+    assert "bild.programmTitel" in SEITE
+    assert 'id="programmherausgeber"' in SEITE
+
+
+def test_eine_pause_steht_im_stand_und_nicht_in_der_liste():
+    assert 'id="block-ruhe"' in SEITE
+    assert "bild.ruhe" in SEITE
+    # Kein Abhak-Knopf an einer Pause: sie geht gar nicht erst in fuelle().
+    assert 'fuelle("block-ruhe"' not in SEITE
+
+
+def test_der_programmwechsel_ist_leitungssache():
+    assert 'body:not([data-rolle="LEITUNG"]) #programmwechsel { display: none; }' in SEITE
+    assert '"/api/programm"' in SEITE
+
+
+def test_der_wechsel_wird_nicht_nachgereicht():
+    """Er braucht eine Antwort — und er ist keine Stallbeobachtung, die im
+    Funkloch entsteht."""
+    schlange = SEITE[SEITE.index("const NACHREICHBAR") : SEITE.index("function schlange")]
+    assert "/api/programm" not in schlange
+
+
+def test_die_gegenueberstellung_ist_bedienbar():
+    assert 'id="vergleichtafel"' in SEITE
+    assert '"/api/vergleich?"' in SEITE
+    assert "Welches Blatt gilt, entscheidet der Betrieb." in SEITE
+
+
+def test_bei_einem_einzigen_blatt_gibt_es_nichts_zu_waehlen():
+    """Masthuhn hat nur ein Blatt — ein Wechsler ohne Alternative ist Lärm."""
+    assert '$("programmvergleich").hidden = passend.length < 2;' in SEITE
+    assert '$("programmwechsel").hidden = passend.length < 2;' in SEITE
+
+
+def test_die_merksaetze_des_blattes_sind_erreichbar():
+    """Biosicherheit und Lüftung taugen zu keinem Termin — und fehlen trotzdem nicht."""
+    assert 'id="merksaetze"' in SEITE
+    assert "Merksätze des Blattes" in SEITE
+
+
+def test_der_tierarzt_steht_am_betrieb():
+    assert 'id="block-tierarzt"' in SEITE
+    assert "bild.tierarzt" in SEITE

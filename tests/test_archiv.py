@@ -1,5 +1,6 @@
 """Persistenz: Migrationen, Mandantentrennung, idempotente Quittungen."""
 
+import sqlite3
 from datetime import date
 from pathlib import Path
 
@@ -14,10 +15,12 @@ from elevage.archiv import (
     protokolliere_mischung,
     quittiere,
     quittungen_fuer,
+    setze_tierarzt,
     spalten,
     speichere_herde,
     stalle_aus,
     tabellen,
+    tierarzt_fuer,
 )
 from elevage.mischung import baue_mischauftrag
 from elevage.models import Herde, Quittung, Tierart
@@ -250,3 +253,51 @@ def test_unbekannte_einstellung_wird_abgewiesen(conn):
 
     with pytest.raises(KeyError):
         setze_einstellung(conn, "betrieb-1", "irgendwas.erfundenes", "42")
+
+
+def test_migration_8_laesst_bestehende_herden_in_ruhe(tmp_path):
+    """Der eigentliche Zweck: eine Datenbank aus der Zeit vor der Programmwahl
+    darf beim Öffnen nicht ihren Plan ändern. NULL heißt „die Vorgabe“."""
+    db = tmp_path / "alt.db"
+    conn = sqlite3.connect(db)
+    conn.row_factory = sqlite3.Row
+    # Stand vor der Wahl: nur die Migrationen 1 bis 7.
+    conn.execute("CREATE TABLE schema_version (version INTEGER PRIMARY KEY, angewendet_am TEXT)")
+    for nummer, sql in MIGRATIONEN:
+        if nummer >= 8:
+            break
+        conn.executescript(sql)
+        conn.execute(
+            "INSERT INTO schema_version (version, angewendet_am) VALUES (?, '2026-01-01')",
+            (nummer,),
+        )
+    conn.execute(
+        "INSERT INTO herde (tenant_id, herde_id, name, tierart, einstalldatum, tierzahl)"
+        " VALUES ('t', 'H1', 'Alt', 'LEGEHENNE', '2026-01-01', 900)"
+    )
+    conn.commit()
+    conn.close()
+
+    with oeffne(db) as offen:
+        herde = lade_herde(offen, "t", "H1")
+        assert herde is not None
+        assert herde.programm_id is None
+        assert herde.tierzahl == 900
+        # Und die Wahl lässt sich nachträglich setzen.
+        speichere_herde(offen, herde.model_copy(update={"programm_id": "VETO_PONDEUSE"}))
+        wieder = lade_herde(offen, "t", "H1")
+        assert wieder is not None and wieder.programm_id == "VETO_PONDEUSE"
+
+
+def test_der_tierarzt_bleibt_beim_mandanten(tmp_path):
+    from elevage.models import Tierarzt
+
+    with oeffne(tmp_path / "t.db") as conn:
+        setze_tierarzt(conn, Tierarzt(tenant_id="a", name="Dr. A"))
+        setze_tierarzt(conn, Tierarzt(tenant_id="b", name="Dr. B", telefon="1"))
+        assert tierarzt_fuer(conn, "a").name == "Dr. A"
+        assert tierarzt_fuer(conn, "b").telefon == "1"
+        assert tierarzt_fuer(conn, "c") is None
+        # Einer je Mandant: das zweite Setzen überschreibt.
+        setze_tierarzt(conn, Tierarzt(tenant_id="a", name="Dr. C"))
+        assert tierarzt_fuer(conn, "a").name == "Dr. C"

@@ -15,6 +15,7 @@ from elevage.anpassung import normiere_artikel
 from elevage.einstellung import BEKANNT
 from elevage.mischung import baue_mischauftrag
 from elevage.models import (
+    OFFENES_ENDE,
     Abgangsgrund,
     Ampel,
     Ausgleichsart,
@@ -26,6 +27,8 @@ from elevage.models import (
     Herkunft,
     Mischauftrag,
     Praeparat,
+    Programm,
+    Programmvergleich,
     Quittung,
     Rezept,
     Rezeptanpassung,
@@ -33,10 +36,13 @@ from elevage.models import (
     Tagesbild,
     Termin,
     Tierart,
+    Tierarzt,
 )
+from elevage.programme import alle_programme, programm, programm_konflikt
 from elevage.rezepte import REZEPTE, rezept_nach_key
 from elevage.server import STANDARD_PORT, laufe
 from elevage.takt import mischauftrag_fuer, rechne
+from elevage.vergleich import vergleiche
 from elevage.wartezeit import praeparat_id
 
 ERLEDIGT_AB_TAGEN = 10
@@ -77,7 +83,10 @@ def zeige_tagesbild(bild: Tagesbild) -> None:
         f"Stichtag {bild.stichtag:%d.%m.%Y} · Tag {bild.alter_tage} "
         f"· Woche {bild.alter_wochen} · Gesamtlage {bild.ampel.value}"
     )
+    print(f"Programm: {bild.programm_titel}")
     print(f"Futterphase: {bild.phase.name if bild.phase else '— kein Blatt vorhanden'}")
+    for r in bild.ruhe:
+        print(f"RUHE: {r.titel} (bis {r.faellig_bis:%d.%m.})")
 
     for titel, liste in (
         ("ÜBERFÄLLIG", bild.ueberfaellig),
@@ -131,6 +140,54 @@ def zeige_tagesbild(bild: Tagesbild) -> None:
         for i in bild.issues:
             print(f"  · {i}")
 
+    if bild.tierarzt:
+        kontakt = " · ".join(x for x in (bild.tierarzt.telefon, bild.tierarzt.email) if x)
+        print(f"\nTIERARZT: {bild.tierarzt.name}" + (f" · {kontakt}" if kontakt else ""))
+
+
+def zeige_programm(blatt: Programm) -> None:
+    """Ein Blatt, wie es auf dem Papier steht — Schritte, Dauer, Merksätze."""
+    print(f"\n{blatt.titel}  [{blatt.programm_id}]")
+    if blatt.herausgeber:
+        print(f"Herausgeber: {blatt.herausgeber}")
+    print(f"{len(blatt.schritte)} Schritte · {len(blatt.dauerregeln)} Dauerregeln")
+    for s in sorted(blatt.schritte, key=lambda x: (x.von_tag, x.key)):
+        fenster = (
+            f"ab J{s.von_tag}"
+            if s.bis_tag >= OFFENES_ENDE
+            else (f"J{s.von_tag}" if s.von_tag == s.bis_tag else f"J{s.von_tag}-J{s.bis_tag}")
+        )
+        mittel = f" — {' / '.join(s.praeparate)}" if s.praeparate else ""
+        print(f"  {fenster:>12s}  {s.kategorie.value:<14s} {s.titel}{mittel}")
+        if s.dosis_je_liter:
+            print(f"                Dosis: {s.dosis_je_liter}")
+    for r in blatt.dauerregeln:
+        ab = f" ab J{r.ab_tag}" if r.ab_tag is not None else " ab der Legephase"
+        print(f"  alle {r.intervall_tage:>4d} d  {r.kategorie.value:<14s} {r.titel}{ab}")
+    if blatt.hinweise:
+        print("\nMERKSÄTZE DES BLATTES")
+        for h in blatt.hinweise:
+            print(f"  · {h}")
+
+
+def zeige_vergleich(v: Programmvergleich) -> None:
+    """Die Gegenüberstellung — Unterschiede zuerst, Gleiches am Ende."""
+    print(f"\n{v.links_titel}   ←→   {v.rechts_titel}")
+    print(f"{'THEMA':<34s} {'LINKS':<34s} RECHTS")
+    for z in v.zeilen:
+        if z.gleich:
+            continue
+        print(f"{z.thema[:33]:<34s} {(z.links or '—')[:33]:<34s} {z.rechts or '—'}")
+    gleich = [z.thema for z in v.zeilen if z.gleich]
+    if gleich:
+        print(f"\nGLEICH IN BEIDEN: {', '.join(gleich)}")
+    if v.issues:
+        print("\nBEFUNDE (gemeldet, nicht stillschweigend geglättet)")
+        for i in v.issues:
+            print(f"  · {i}")
+    print("\nWelches Blatt gilt, entscheidet der Betrieb — mit 'elevage programm --herde X")
+    print("--waehlen KENNUNG' wird die Wahl je Herde gesetzt.")
+
 
 def zeige_rezept(rezept: Rezept) -> None:
     print(f"\n{rezept.name} ({rezept.key}) · Quelle: {rezept.quelle}")
@@ -175,6 +232,11 @@ def main(argv: list[str] | None = None) -> int:
     an.add_argument("--tiere", type=int, required=True)
     an.add_argument("--hoher-virusdruck", action="store_true")
     an.add_argument("--spaete-schlachtung", action="store_true")
+    an.add_argument(
+        "--programm",
+        choices=[x.programm_id for x in alle_programme()],
+        help="Prophylaxe-Blatt (Vorgabe: das der Tierart)",
+    )
 
     aus = unter.add_parser("ausstallen", help="Herde stilllegen (Historie bleibt)")
     _bauplan(aus)
@@ -282,6 +344,30 @@ def main(argv: list[str] | None = None) -> int:
     bu.add_argument("--passwort", metavar="ANMELDENAME", help="Passwort neu setzen")
     bu.add_argument("--am", type=_datum, help="Anlagedatum (Vorgabe: heute)")
 
+    pg = unter.add_parser("programm", help="Prophylaxe-Blätter: zeigen, wählen, vergleichen")
+    _bauplan(pg)
+    pg.add_argument("--herde", help="Blatt dieser Herde wechseln")
+    pg.add_argument(
+        "--waehlen",
+        choices=[x.programm_id for x in alle_programme()],
+        help="Kennung des Blattes; ohne Angabe zurück auf die Vorgabe",
+    )
+    pg.add_argument("--zeigen", choices=[x.programm_id for x in alle_programme()])
+    pg.add_argument(
+        "--vergleich",
+        nargs=2,
+        metavar=("LINKS", "RECHTS"),
+        help="zwei Kennungen gegenüberstellen",
+    )
+
+    ta = unter.add_parser("tierarzt", help="Den Tierarzt des Betriebs hinterlegen")
+    _bauplan(ta)
+    ta.add_argument("--name", help="Klarname, z. B. Dr. BANGUE")
+    ta.add_argument("--praxis")
+    ta.add_argument("--telefon")
+    ta.add_argument("--email")
+    ta.add_argument("--hinweis")
+
     ui = unter.add_parser("ui", help="Lokale Oberfläche starten")
     ui.add_argument("--db", type=Path)
     ui.add_argument("--port", type=int, default=STANDARD_PORT)
@@ -313,9 +399,77 @@ def main(argv: list[str] | None = None) -> int:
                 tierzahl=a.tiere,
                 hoher_virusdruck=a.hoher_virusdruck,
                 spaete_schlachtung=a.spaete_schlachtung,
+                programm_id=a.programm,
             )
+            konflikt = programm_konflikt(herde.tierart, herde.programm_id)
+            if konflikt:
+                print(konflikt)
+                return 2
             archiv.speichere_herde(conn, herde)
+            blatt = programm(herde.tierart, herde.programm_id)
             print(f"Eingestallt: {herde.name} ({herde.herde_id}) ab {herde.einstalldatum}")
+            print(f"Programm: {blatt.titel}")
+            return 0
+
+        if a.befehl == "programm":
+            if a.vergleich:
+                links, rechts = a.vergleich
+                paare = {x.programm_id: x for x in alle_programme()}
+                if links not in paare or rechts not in paare:
+                    print("Unbekannte Kennung. Bekannt sind: " + ", ".join(sorted(paare)))
+                    return 2
+                zeige_vergleich(vergleiche(paare[links], paare[rechts]))
+                return 0
+            if a.zeigen:
+                zeige_programm(next(x for x in alle_programme() if x.programm_id == a.zeigen))
+                return 0
+            if a.herde:
+                try:
+                    gewechselt = betrieb.setze_programm(conn, a.betrieb, a.herde, a.waehlen)
+                except (KeyError, ValueError) as fehler:
+                    print(str(fehler))
+                    return 2
+                blatt = programm(gewechselt.tierart, gewechselt.programm_id)
+                print(f"{gewechselt.name}: Programm ist jetzt „{blatt.titel}“.")
+                print(
+                    "Abgehakte Schritte bleiben abgehakt — was das neue Blatt "
+                    "nicht kennt, verschwindet aus der Liste."
+                )
+                return 0
+            for x in alle_programme():
+                marke = " (Vorgabe)" if x.vorgabe else ""
+                print(
+                    f"  {x.programm_id:<20s} {x.tierart.value:<10s} {x.titel}{marke}\n"
+                    f"  {'':<20s} {len(x.schritte)} Schritte · "
+                    f"{len(x.dauerregeln)} Dauerregeln · {x.herausgeber or x.quelle}"
+                )
+            return 0
+
+        if a.befehl == "tierarzt":
+            if a.name:
+                archiv.setze_tierarzt(
+                    conn,
+                    Tierarzt(
+                        tenant_id=a.betrieb,
+                        name=a.name,
+                        praxis=a.praxis,
+                        telefon=a.telefon,
+                        email=a.email,
+                        hinweis=a.hinweis,
+                    ),
+                )
+                print(f"Tierarzt hinterlegt: {a.name}")
+                return 0
+            arzt = archiv.tierarzt_fuer(conn, a.betrieb)
+            if arzt is None:
+                print("Kein Tierarzt hinterlegt. Anlegen mit 'elevage tierarzt --name …'.")
+                return 0
+            print(f"  {arzt.name}" + (f" · {arzt.praxis}" if arzt.praxis else ""))
+            for feld, wert in (("Telefon", arzt.telefon), ("E-Mail", arzt.email)):
+                if wert:
+                    print(f"  {feld}: {wert}")
+            if arzt.hinweis:
+                print(f"  {arzt.hinweis}")
             return 0
 
         if a.befehl == "ausstallen":
@@ -331,7 +485,8 @@ def main(argv: list[str] | None = None) -> int:
             for h in herden:
                 print(
                     f"  {h.herde_id:6s} {h.name:24s} {h.tierart.value:10s} "
-                    f"ab {h.einstalldatum}  {h.tierzahl:6d} Tiere"
+                    f"ab {h.einstalldatum}  {h.tierzahl:6d} Tiere  "
+                    f"{programm(h.tierart, h.programm_id).titel}"
                 )
             return 0
 

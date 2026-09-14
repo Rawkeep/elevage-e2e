@@ -25,6 +25,7 @@ from elevage.models import (
     Tagesbild,
     Verzehrkurve,
 )
+from elevage.programme import programm_konflikt
 from elevage.rezepte import rezept_nach_key
 from elevage.takt import rechne
 from elevage.verzehr import aus_mischungen, kombiniere, richtwert
@@ -87,7 +88,30 @@ def tagesbild(
         vermerke=archiv.vermerke_fuer(conn, tenant_id),
         praeparate=archiv.praeparate_fuer(conn, tenant_id),
         bewegungen=archiv.bewegungen_fuer(conn, tenant_id, herde_id),
+        tierarzt=archiv.tierarzt_fuer(conn, tenant_id),
     )
+
+
+def setze_programm(
+    conn: sqlite3.Connection,
+    tenant_id: str,
+    herde_id: str,
+    programm_id: str | None,
+) -> Herde:
+    """Das Blatt einer laufenden Herde wechseln.
+
+    Absicht und Wirkung liegen hier auseinander, deshalb steht es hier und
+    nicht in der Oberfläche: die Quittungen bleiben, das Programm wechselt.
+    Was der alte Plan verlangte und der neue nicht kennt, verschwindet aus
+    der Liste — abgehakt bleibt abgehakt, die Historie wird nicht angefasst.
+    """
+    herde = _herde(conn, tenant_id, herde_id)
+    konflikt = programm_konflikt(herde.tierart, programm_id)
+    if konflikt:
+        raise ValueError(konflikt)
+    gewechselt = herde.model_copy(update={"programm_id": programm_id})
+    archiv.speichere_herde(conn, gewechselt)
+    return gewechselt
 
 
 def wirksames_rezept_fuer(conn: sqlite3.Connection, tenant_id: str, basis: Rezept) -> Rezept:

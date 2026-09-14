@@ -410,6 +410,8 @@ td.zahl, th.zahl { text-align: right; white-space: nowrap; }
 
 body[data-rolle="LESER"] button.tat:not(#laden):not(#rechnen) { display: none; }
 body:not([data-rolle="LEITUNG"]) #vermerke button { display: none; }
+/* Ein Programmwechsel verschiebt Impftermine — das ist keine Stallarbeit. */
+body:not([data-rolle="LEITUNG"]) #programmwechsel { display: none; }
 
 @media (prefers-reduced-motion: no-preference) {
   .toast { animation: hoch .2s ease-out; }
@@ -489,6 +491,26 @@ _SEITE_MARKUP = """
     <p id="sperrtext" style="margin:0;font-weight:650"></p>
     <ul id="sperrliste" style="margin-top:8px"></ul>
   </div>
+
+  <div class="block" id="block-programm">
+    <h3>Programm</h3>
+    <p id="programmtext" style="margin:0;font-weight:650"></p>
+    <p class="leise winzig" id="programmherausgeber" style="margin:4px 0 0"></p>
+    <details id="merksaetze" hidden>
+      <summary>Merksätze des Blattes</summary>
+      <ul id="merkliste"></ul>
+    </details>
+  </div>
+
+  <div class="block" id="block-ruhe" hidden>
+    <h3>Ruhe</h3>
+    <p id="ruhetext" style="margin:0"></p>
+  </div>
+
+  <div class="block" id="block-tierarzt" hidden>
+    <h3>Tierarzt</h3>
+    <p id="tierarzttext" style="margin:0"></p>
+  </div>
 </section>
 
 <div class="raster">
@@ -550,6 +572,29 @@ _SEITE_MARKUP = """
        entscheidet, ob es in die Verlustquote zählt.</p>
   </details>
 
+  <details id="programmwechsel">
+    <summary>Programm wechseln</summary>
+    <div class="kopf">
+      <div class="feld"><label for="programmwahl">Programm</label>
+        <select id="programmwahl"></select></div>
+      <button class="tat" id="programmsetzen" type="button">Übernehmen</button>
+    </div>
+    <p class="leise winzig" style="margin-bottom:0">Abgehakte Schritte bleiben
+       abgehakt. Welches Blatt gilt, entscheidet der Betrieb.</p>
+  </details>
+
+  <details id="programmvergleich">
+    <summary>Blätter vergleichen</summary>
+    <div class="kopf">
+      <div class="feld"><label for="vergleichlinks">Links</label>
+        <select id="vergleichlinks"></select></div>
+      <div class="feld"><label for="vergleichrechts">Rechts</label>
+        <select id="vergleichrechts"></select></div>
+      <button class="tat" id="vergleichen" type="button">Gegenüberstellen</button>
+    </div>
+    <div id="vergleichtafel" class="breit" style="margin-top:12px"></div>
+  </details>
+
   <details>
     <summary>Vorfall melden</summary>
     <div class="kopf">
@@ -601,6 +646,7 @@ _SEITE_SKRIPT = """
 const heute = () => new Date().toISOString().slice(0, 10);
 let bild = null;
 let letzteQuittung = null;
+let programme = [];
 
 function zeichen(ampel) {
   return { ROT: "!", GELB: "\\u203a", GRUEN: "\\u00b7", ERLEDIGT: "\\u2713" }[ampel] || "";
@@ -803,8 +849,10 @@ async function lade() {
       herde: $("herde").value, stichtag: $("stichtag").value,
     });
     if ($("vorrat").value) p.set("vorrat", $("vorrat").value);
+    await ladeProgramme();
     bild = await hole("/api/tagesbild?" + p);
     zeige();
+    fuelleProgrammwahl();
     $("zustand").hidden = true;
   } catch (fehler) {
     $("zustand").hidden = false;
@@ -862,6 +910,37 @@ function zeige() {
                               : "Richtwert — keine Zahl dieses Betriebs.");
     $("futter").hidden = false;
   } else { $("futter").hidden = true; }
+
+  $("programmtext").textContent = bild.programmTitel;
+  const blatt = (programme || []).find((x) => x.programmId === bild.programmId);
+  $("programmherausgeber").textContent = blatt ? blatt.herausgeber : "";
+
+  // Die Merksätze stehen im Blatt und nicht im Kalender: Biosicherheit,
+  // Lüftung, „nur gesunde Tiere impfen". Sie taugen zu keinem Termin.
+  const merk = $("merkliste");
+  merk.replaceChildren();
+  ((blatt && blatt.hinweise) || []).forEach((h) => {
+    const li = document.createElement("li");
+    li.className = "befund";
+    li.style.listStyle = "none";
+    li.textContent = h;
+    merk.appendChild(li);
+  });
+  $("merksaetze").hidden = !(blatt && blatt.hinweise && blatt.hinweise.length);
+
+  // Eine Pause ist eine Anweisung, keine Aufgabe — sie steht hier und
+  // nicht in der Liste, weil sie nichts zum Abhaken ist.
+  const ruhe = bild.ruhe || [];
+  $("ruhetext").textContent = ruhe
+    .map((r) => r.titel + " (" + txt("bis") + " " + fenster(r).split("\u2013").pop() + ")")
+    .join(" \u00b7 ");
+  $("block-ruhe").hidden = ruhe.length === 0;
+
+  const arzt = bild.tierarzt;
+  $("tierarzttext").textContent = arzt
+    ? [arzt.name, arzt.praxis, arzt.telefon, arzt.email].filter((x) => x).join(" \u00b7 ")
+    : "";
+  $("block-tierarzt").hidden = !arzt;
 
   fuelle("block-ueberfaellig", bild.ueberfaellig, true);
   fuelle("block-heute", bild.heute, true);
@@ -1026,6 +1105,106 @@ async function rechne(buchen) {
     ziel.textContent = txt("Das hat nicht geklappt:") + " " + fehler.message;
   }
 }
+
+async function ladeProgramme() {
+  // Die Blätter kommen einmal und ändern sich nicht — ein Neuladen je
+  // Tagesbild wäre ein Anruf ohne neue Antwort.
+  if (programme.length) return programme;
+  const daten = await hole("/api/programme");
+  programme = daten.programme;
+  return programme;
+}
+
+function fuelleProgrammwahl() {
+  // Nur die Blätter der Tierart dieser Herde — ein Legehennenplan für
+  // Masthühner wäre eine Wahl, die der Server ohnehin ablehnt.
+  if (!bild) return;
+  const passend = programme.filter((x) => x.tierart === bild.herde.tierart);
+  // Vorbelegt wird das geltende Blatt gegen das nächste andere — ein Blatt
+  // mit sich selbst zu vergleichen ergibt eine Tabelle ohne Unterschied.
+  const anderes = passend.find((x) => x.programmId !== bild.programmId);
+  const vorwahl = {
+    programmwahl: bild.programmId,
+    vergleichlinks: bild.programmId,
+    vergleichrechts: anderes && anderes.programmId,
+  };
+  Object.keys(vorwahl).forEach((id) => {
+    const wahl = $(id);
+    const vorher = wahl.value;
+    wahl.replaceChildren();
+    passend.forEach((x) => {
+      const opt = document.createElement("option");
+      opt.value = x.programmId;
+      opt.textContent = x.titel;
+      wahl.appendChild(opt);
+    });
+    wahl.value = vorher || vorwahl[id] || "";
+  });
+  // Ein einziges Blatt lässt sich mit nichts vergleichen.
+  $("programmvergleich").hidden = passend.length < 2;
+  $("programmwechsel").hidden = passend.length < 2;
+}
+
+$("programmsetzen").onclick = async () => {
+  try {
+    await hole("/api/programm", {
+      method: "POST", headers: { "content-type": "application/json" },
+      body: JSON.stringify({ herde: $("herde").value, programm: $("programmwahl").value }),
+    });
+    melde(txt("Das Programm dieser Herde wurde gewechselt."), false);
+    await lade();
+  } catch (fehler) { melde(txt("Das hat nicht geklappt:") + " " + fehler.message, false); }
+};
+
+function zeigeVergleich(v) {
+  const ziel = $("vergleichtafel");
+  ziel.replaceChildren();
+  const tabelle = document.createElement("table");
+  const kopf = document.createElement("tr");
+  [txt("Thema"), v.linksTitel, v.rechtsTitel].forEach((text) => {
+    const th = document.createElement("th");
+    th.textContent = text;
+    kopf.appendChild(th);
+  });
+  tabelle.appendChild(kopf);
+  v.zeilen.filter((z) => !z.gleich).forEach((z) => {
+    const tr = document.createElement("tr");
+    [z.thema, z.links || "\u2014", z.rechts || "\u2014"].forEach((text) => {
+      const td = document.createElement("td");
+      td.textContent = text;
+      tr.appendChild(td);
+    });
+    tabelle.appendChild(tr);
+  });
+  ziel.appendChild(tabelle);
+  const gleich = v.zeilen.filter((z) => z.gleich).map((z) => z.thema);
+  if (gleich.length) {
+    const p = document.createElement("p");
+    p.className = "leise winzig";
+    p.textContent = txt("Gleich in beiden") + ": " + gleich.join(", ");
+    ziel.appendChild(p);
+  }
+  (v.issues || []).forEach((i) => {
+    const p = document.createElement("p");
+    p.className = "befund";
+    p.textContent = i;
+    ziel.appendChild(p);
+  });
+  const schluss = document.createElement("p");
+  schluss.className = "leise winzig";
+  schluss.textContent = txt("Welches Blatt gilt, entscheidet der Betrieb.");
+  ziel.appendChild(schluss);
+}
+
+$("vergleichen").onclick = async () => {
+  const p = new URLSearchParams({
+    links: $("vergleichlinks").value, rechts: $("vergleichrechts").value,
+  });
+  try {
+    zeigeVergleich(await hole("/api/vergleich?" + p));
+    uebersetzeSeite();
+  } catch (fehler) { melde(txt("Das hat nicht geklappt:") + " " + fehler.message, false); }
+};
 
 $("rechnen").onclick = () => rechne(false);
 $("buchen").onclick = () => rechne(true).then(lade);

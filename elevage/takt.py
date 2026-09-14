@@ -146,6 +146,7 @@ def rechne(
         alter_wochen=wochen,
         programm_id=blatt.programm_id,
         programm_titel=blatt.titel,
+        programm_titel_fr=blatt.titel_fr,
         phase=phase,
         ueberfaellig=ueberfaellig,
         heute=heute,

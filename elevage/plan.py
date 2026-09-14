@@ -85,10 +85,14 @@ def _wiederkehrende_schritte(herde: Herde, bis_tag: int) -> list[Schritt]:
                     von_tag=tag,
                     bis_tag=tag + 6,
                     titel=f"{regel.titel} ({nummer}. Gabe der Dauerperiode)",
+                    titel_fr=(
+                        f"{regel.titel_fr} ({nummer}e administration)" if regel.titel_fr else None
+                    ),
                     kategorie=regel.kategorie,
                     verabreichung=regel.verabreichung,
                     praeparate=list(regel.praeparate),
                     hinweis=regel.hinweis,
+                    hinweis_fr=regel.hinweis_fr,
                     dosis_je_liter=regel.dosis_je_liter,
                     vorlauf_tage=3,
                 )
@@ -163,6 +167,8 @@ def baue_termine(
                 ampel=_ampel(von, bis, stichtag, quittung is not None),
                 bedingt=s.bedingt,
                 hinweis=s.hinweis,
+                titel_fr=s.titel_fr,
+                hinweis_fr=s.hinweis_fr,
                 dosis_je_liter=s.dosis_je_liter,
                 quelle=s.quelle,
                 erledigt_am=quittung.erledigt_am if quittung else None,

@@ -90,11 +90,16 @@ def schritte_fuer_vorfall(
             von_tag=tag,
             bis_tag=tag + SCHEMA_TAGE - 1,
             titel=f"Gumboro-Schema: Desinfektion {gewaehlt} + Antikokzidium 1 g/l (4 Tage)",
+            titel_fr=(
+                f"En cas de maladie de GUMBORO : désinfection {gewaehlt} "
+                "+ anticoccidien 1 g/l sur 4 jours"
+            ),
             kategorie=Kategorie.MEDIKATION,
             verabreichung=Verabreichung.TRINKWASSER,
             praeparate=[f"{' oder '.join(DESINFEKTION)} ({gewaehlt})"]
             + [f"+ {' oder '.join(ANTIKOKZIDIUM)} (1 g/l)"],
             hinweis=f"Ausgelöst durch Vorfall vom {ereignis.festgestellt_am:%d.%m.%Y}",
+            hinweis_fr=f"Déclenché par l'incident du {ereignis.festgestellt_am:%d.%m.%Y}",
             quelle="NB-Kasten des Blattes",
             issues=[DOSIS_VOM_BETRIEB if vom_betrieb else DOSIS_WIDERSPRUCH],
         ),
@@ -104,21 +109,30 @@ def schritte_fuer_vorfall(
             von_tag=tag + SCHEMA_TAGE,
             bis_tag=tag + SCHEMA_TAGE + ERHOLUNG_TAGE - 1,
             titel="Nach Gumboro: Futteraufnahme mit Leberschutz wieder anschieben",
+            titel_fr=(
+                "Relancer la consommation d'aliment après le passage de la "
+                "GUMBORO en distribuant un protecteur hépatorénal"
+            ),
             kategorie=Kategorie.VITAMINE,
             verabreichung=Verabreichung.TRINKWASSER,
             praeparate=list(LEBERSCHUTZ),
             folgt_auf=f"NOTFALL_{kennung}_DESINFEKTION",
             hinweis="Das Blatt nennt es Diuretikum bzw. hepatorenalen Schutz",
+            hinweis_fr="Le programme parle de diurétique ou de protecteur hépatorénal",
             quelle="NB-Kasten des Blattes",
         ),
     ]
 
 
-def wechseltage(tierart: Tierart) -> list[tuple[int, str]]:
-    """Aus den Rezepten abgeleitet, nicht als Zahl hingeschrieben."""
+def wechseltage(tierart: Tierart) -> list[tuple[int, str, str]]:
+    """Aus den Rezepten abgeleitet, nicht als Zahl hingeschrieben.
+
+    Je Wechsel: Lebenstag, Name der Phase, Name im Blatt (französisch)."""
     if tierart is not Tierart.LEGEHENNE:
         return []
-    return [(7 * (r.von_woche - 1) + 1, r.name) for r in REZEPTE if r.von_woche > 1]
+    return [
+        (7 * (r.von_woche - 1) + 1, r.name, r.name_fr or r.name) for r in REZEPTE if r.von_woche > 1
+    ]
 
 
 def futterwechsel_schritte(herde: Herde) -> list[Schritt]:
@@ -131,11 +145,15 @@ def futterwechsel_schritte(herde: Herde) -> list[Schritt]:
             von_tag=tag + vorn,
             bis_tag=tag + hinten,
             titel=f"Futterwechsel auf {name} — Leberschutz mitgeben",
+            titel_fr=(
+                f"Transition alimentaire vers {name_fr} — mettre en place un protecteur hépatorénal"
+            ),
             kategorie=Kategorie.FUTTERWECHSEL,
             verabreichung=Verabreichung.TRINKWASSER,
             praeparate=list(LEBERSCHUTZ),
             hinweis="Das Blatt verlangt den Schutz bei JEDEM Futterwechsel",
+            hinweis_fr="Le programme l'exige à CHAQUE transition alimentaire",
             quelle="NB-Kasten des Blattes",
         )
-        for tag, name in wechseltage(herde.tierart)
+        for tag, name, name_fr in wechseltage(herde.tierart)
     ]

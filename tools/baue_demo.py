@@ -202,6 +202,20 @@ ATTRAPPE = """
 // im Speicher dieser Registerkarte, damit der Takt sichtbar wird — mehr
 // verspricht das Band oben auch nicht.
 const DEMO = DATEN_HIER;
+
+// Das gewählte Blatt übersteht ein Neuladen — der Sprachwechsel lädt die
+// Seite neu, und ohne das spränge die Demo stillschweigend zurück auf das
+// Vorgabe-Blatt. In der Anwendung steht die Wahl in der Datenbank; die
+// Demo hat keine, also merkt sie sich das eine Feld für diese Registerkarte.
+const DEMO_BLATT = "taktgeber-demo-programm";
+try {
+  const gemerkt = sessionStorage.getItem(DEMO_BLATT);
+  if (gemerkt && DEMO.bilder[gemerkt]) {
+    DEMO.tagesbild = DEMO.bilder[gemerkt];
+    DEMO.herden[0].programmId = gemerkt;
+  }
+} catch (f) {}
+
 const antwort = (inhalt, status = 200) =>
   Promise.resolve(new Response(JSON.stringify(inhalt),
     { status, headers: { "content-type": "application/json" } }));
@@ -251,6 +265,7 @@ window.fetch = async (pfad, optionen) => {
     if (!anderes) return antwort({ fehler: "In der Demo nicht gerechnet." }, 400);
     DEMO.tagesbild = anderes;
     DEMO.herden[0].programmId = daten.programm;
+    try { sessionStorage.setItem(DEMO_BLATT, daten.programm); } catch (f) {}
     return antwort({ herde: DEMO.herden[0] });
   }
   if (pfad === "/api/quittung") {

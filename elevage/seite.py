@@ -746,6 +746,15 @@ function melde(text, rueckgaengig) {
   melde.uhr = setTimeout(() => { $("toast").hidden = true; }, 9000);
 }
 
+// Die Blätter SIND französisch. In der französischen Ansicht steht
+// deshalb ihr eigener Wortlaut, nicht der deutsche Titel durch ein
+// Wörterbuch gedreht. Fehlt er, gilt dieselbe Regel wie im Wörterbuch:
+// lieber Deutsch als ein leeres Feld.
+function wortlaut(objekt, feld) {
+  const fr = objekt[feld + "Fr"];
+  return SPRACHE === "fr" && fr ? fr : objekt[feld];
+}
+
 function postenZeile(t, mitKnopf) {
   const li = document.createElement("li");
   li.className = "posten " + t.ampel;
@@ -754,7 +763,7 @@ function postenZeile(t, mitKnopf) {
   const links = document.createElement("div");
   const titel = document.createElement("div");
   titel.className = "titel";
-  titel.textContent = zeichen(t.ampel) + " " + t.titel;
+  titel.textContent = zeichen(t.ampel) + " " + wortlaut(t, "titel");
   links.appendChild(titel);
   if (t.praeparate && t.praeparate.length) {
     const m = document.createElement("div");
@@ -765,8 +774,14 @@ function postenZeile(t, mitKnopf) {
   if (t.hinweis) {
     const h = document.createElement("div");
     h.className = "mittel";
-    h.textContent = t.hinweis;
+    h.textContent = wortlaut(t, "hinweis");
     links.appendChild(h);
+  }
+  if (t.dosisJeLiter) {
+    const d = document.createElement("div");
+    d.className = "mittel";
+    d.textContent = txt("Dosis") + ": " + t.dosisJeLiter;
+    links.appendChild(d);
   }
   if (t.erledigtAm) {
     const e = document.createElement("div");
@@ -874,7 +889,7 @@ function zeige() {
     txt("Tag") + " " + bild.alterTage + " \\u00b7 " + txt("Woche") + " "
     + bild.alterWochen + " \\u00b7 " + imStall + " " + txt("Tiere") + verlust;
   $("phase").textContent = bild.phase
-    ? txt("Futterphase") + ": " + bild.phase.name
+    ? txt("Futterphase") + ": " + wortlaut(bild.phase, "name")
     : txt("Für diese Linie liegt kein Futterblatt vor.");
   $("kopfzahlen").hidden = false;
 
@@ -911,7 +926,8 @@ function zeige() {
     $("futter").hidden = false;
   } else { $("futter").hidden = true; }
 
-  $("programmtext").textContent = bild.programmTitel;
+  $("programmtext").textContent =
+    SPRACHE === "fr" && bild.programmTitelFr ? bild.programmTitelFr : bild.programmTitel;
   const blatt = (programme || []).find((x) => x.programmId === bild.programmId);
   $("programmherausgeber").textContent = blatt ? blatt.herausgeber : "";
 
@@ -932,7 +948,8 @@ function zeige() {
   // nicht in der Liste, weil sie nichts zum Abhaken ist.
   const ruhe = bild.ruhe || [];
   $("ruhetext").textContent = ruhe
-    .map((r) => r.titel + " (" + txt("bis") + " " + fenster(r).split("\u2013").pop() + ")")
+    .map((r) => wortlaut(r, "titel") + " (" + txt("bis") + " "
+                + fenster(r).split("\u2013").pop() + ")")
     .join(" \u00b7 ");
   $("block-ruhe").hidden = ruhe.length === 0;
 

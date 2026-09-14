@@ -78,7 +78,7 @@ def test_jeder_vorfall_bekommt_eigene_schluessel():
 
 
 def test_wechseltage_kommen_aus_den_rezepten_nicht_aus_konstanten():
-    assert [tag for tag, _ in wechseltage(Tierart.LEGEHENNE)] == [57, 148]
+    assert [tag for tag, _, _ in wechseltage(Tierart.LEGEHENNE)] == [57, 148]
     assert wechseltage(Tierart.MASTHUHN) == []
 
 

@@ -14,6 +14,8 @@ Woche w umfasst die Tage 7*(w-1)+1 bis 7*w.
 
 from __future__ import annotations
 
+from typing import TypeVar
+
 from elevage.models import (
     OFFENES_ENDE,
     Dauerregel,
@@ -676,6 +678,8 @@ def _stress(von: int, bis: int, nummer: int, praeparate: list[str] | None = None
         von_tag=von,
         bis_tag=bis,
         titel="Anti-Stress ins Trinkwasser",
+        # „EB“ löst die Legende des Blattes selbst auf: Eau de Boisson.
+        titel_fr="ANTI-STRESS (eau de boisson)",
         kategorie=Kategorie.ANTI_STRESS,
         verabreichung=Verabreichung.TRINKWASSER,
         praeparate=list(praeparate or VITAFLASH),
@@ -692,9 +696,11 @@ def _pause(von: int, bis: int, nummer: int) -> Schritt:
         von_tag=von,
         bis_tag=bis,
         titel="Einfaches Wasser — nichts zugeben",
+        titel_fr="EAU SIMPLE",
         kategorie=Kategorie.PAUSE,
         verabreichung=Verabreichung.TRINKWASSER,
         hinweis="Das Blatt schreibt hier ausdrücklich „EAU SIMPLE“ — die Lücke ist gewollt.",
+        hinweis_fr="Le programme écrit ici « EAU SIMPLE » — le creux est voulu.",
         quelle=VETO,
     )
 
@@ -1056,6 +1062,215 @@ HINWEISE_VETO = [
 ]
 
 
+# =======================================================================
+# Der Wortlaut der Blätter.
+#
+# Die Blätter SIND französisch — der deutsche Titel oben ist die
+# Übersetzung, nicht umgekehrt. Hier steht das Original, damit die
+# französische Ansicht die Sprache des Papiers spricht statt einer
+# Rückübersetzung, und damit jemand mit dem Blatt in der Hand Zeile für
+# Zeile gegenlesen kann. Deshalb an einer Stelle und nicht verstreut.
+#
+# Präparatnamen stehen nicht dabei: die sind in beiden Sprachen gleich
+# und stehen ohnehin am Schritt.
+# =======================================================================
+
+WORTLAUT_CHAIR: dict[str, str] = {
+    "CHAIR_J0_DESINFEKTION": (
+        "Pulvérisation de SULFATE DE CUIVRE avant la mise en place et "
+        "pendant 2 jours en présence des poussins"
+    ),
+    "CHAIR_J1_ND_IB": (
+        "Vaccins Newcastle + BRONCHITE INFECTIEUSE H120 + souche variante, "
+        "en goutte oculaire ou en nébulisation au couvoir"
+    ),
+    "CHAIR_J1_START": "Eau sucrée (50 g/l d'eau) ou vitamine C (0,5 g/l d'eau)",
+    "CHAIR_J2_ANTIBIOTIKUM": "Antibiotique + Vitamines",
+    "CHAIR_J8_GUMBORO_1": "1er vaccin GUMBORO (souche intermédiaire) en eau de boisson",
+    "CHAIR_J10_ND_RAPPEL": (
+        "Rappel vaccin Newcastle et vaccin Bronchite infectieuse souche H120 en eau de boisson"
+    ),
+    "CHAIR_J13_GUMBORO_2": ("2ème vaccin GUMBORO (souche intermédiaire plus) en eau de boisson"),
+    "CHAIR_J18_GUMBORO_3": (
+        "Pour les zones à forte pression virale, 3ème vaccin GUMBORO "
+        "(souche intermédiaire plus) en eau de boisson"
+    ),
+    "CHAIR_J19_ANTIKOKZIDIUM": "Anticoccidien",
+    "CHAIR_J21_ND_RAPPEL_2": (
+        "Rappel vaccin Newcastle et Bronchite infectieuse (H120) en eau de boisson"
+    ),
+    "CHAIR_J22_VITAMINE": "Vitamines",
+    "CHAIR_J24_ATEMWEGE": "Prévention des maladies respiratoires",
+    "CHAIR_J30_ND_SPAET": "Si abattage tardif : Rappel vaccin Newcastle",
+    "CHAIR_J40_ANTIKOKZIDIUM_SPAET": "Anticoccidien si abattage tardif",
+}
+
+WORTLAUT_PONDEUSE: dict[str, str] = {
+    "PONDEUSE_J0_EINSTREU": (
+        "Traitement de la litière par pulvérisation du SULFATE DE CUIVRE "
+        "(0,5 g/l) avant la mise en place et pendant deux jours en présence "
+        "des poussins"
+    ),
+    "PONDEUSE_J1_ND_INAKTIVIERT": (
+        "Vaccin inactivé contre la NEWCASTLE au couvoir (ou à la ferme à J3) "
+        "en injection sous-cutanée"
+    ),
+    "PONDEUSE_J1_ND_IB_LEBEND": (
+        "Vaccin vivant contre la NEWCASTLE et la BRONCHITE INFECTIEUSE "
+        "(H120 + souche variante) en goutte oculaire à la ferme"
+    ),
+    "PONDEUSE_J1_START": "Eau sucrée (50 g/l d'eau) ou vitamine C (0,5 g/l d'eau)",
+    "PONDEUSE_J2_ANTIBIOTIKUM": "Antibiotiques + vitamines",
+    "PONDEUSE_J7_GUMBORO_1": (
+        "1er Vaccin GUMBORO (souche intermédiaire) en goutte oculaire ou en eau de boisson"
+    ),
+    "PONDEUSE_J10_ND_IB_RAPPEL": (
+        "Rappel vaccin vivant contre la NEWCASTLE et la BRONCHITE INFECTIEUSE "
+        "(H120 + souche variante) en eau de boisson"
+    ),
+    "PONDEUSE_J12_GUMBORO_2": "2ème Vaccin GUMBORO (intermédiaire plus) en eau de boisson",
+    # Das Blatt nennt J12 UND J17 beide „2ème“ — der Wortlaut bleibt, der
+    # Widerspruch steht als Befund am Schritt.
+    "PONDEUSE_J17_GUMBORO_3": "2ème Vaccin GUMBORO (intermédiaire plus)",
+    "PONDEUSE_J18_ANTIKOKZIDIUM": "Anticoccidien",
+    "PONDEUSE_J21_ND_IB": (
+        "Rappel vaccin NEWCASTLE et vaccin BRONCHITE INFECTIEUSE (H120) en eau de boisson"
+    ),
+    "PONDEUSE_J23_ANTIBIOTIKUM": "Antibiotiques + vitamines",
+    "PONDEUSE_J28_VITAMINE": "Vitamines",
+    "PONDEUSE_W5_VARIOLE": "Vaccin variole en transfixion alaire",
+    "PONDEUSE_W6_ANTIKOKZIDIUM": "Anticoccidien sur 3 jours",
+    "PONDEUSE_D35_ND_RAPPEL": (
+        "Rappel Vaccin NEWCASTLE en eau de boisson (entre 35 et 40 jours d'âge)"
+    ),
+    "PONDEUSE_W7_DEBECQUAGE": "DEBECQUAGE",
+    "PONDEUSE_W7_ND_INAKTIVIERT": "Vaccin NEWCASTLE inactivé en injection",
+    "PONDEUSE_W7_VITAMIN_K": ("j-1 et j+1 – j+2 : fortifiant + vitamine K autour du débecquage"),
+    "PONDEUSE_D57_ND_WASSER": (
+        "Rappel Vaccin NEWCASTLE en eau de boisson (entre 57 et 60 jours d'âge)"
+    ),
+    "PONDEUSE_W9_ENTWURMUNG": "Déparasitage",
+    "PONDEUSE_W10_ANTIKOKZIDIUM": "Anticoccidien sur 3 jours",
+    "PONDEUSE_W10_IB": (
+        "Rappel vaccins contre la bronchite infectieuse souche H120 et souche "
+        "variante en eau de boisson"
+    ),
+    "PONDEUSE_W10_VARIOLE_RAPPEL": "Rappel Vaccin VARIOLE en transfixion alaire",
+    "PONDEUSE_W11_CORYZA": "Vaccin CORYZA INFECTIEUX en injection",
+    "PONDEUSE_W13_ENTWURMUNG": "Déparasitage",
+    "PONDEUSE_W16_CORYZA_KOMBI": (
+        "Rappel CORYZA INFECTIEUX et Vaccins inactivés NEWCASTLE, BRONCHITE "
+        "INFECTIEUSE et CHUTE DE PONTE en injection"
+    ),
+    # Dauerregeln der Legeperiode (NB-Kasten des Blattes)
+    "PONTE_ENTWURMUNG": "Déparasitage interne une fois par mois",
+    "PONTE_VITAMINE": "Vitamines une fois chaque 2 mois",
+    "PONTE_ND": "Vaccin CLONE ou LASOTA une fois par mois",
+    "PONTE_IB_H120": "Vaccins BRONCHITE INFECTIEUSE en alternance (H120 une fois/mois)",
+    "PONTE_IB_IBIRD": "CEVAC IBIRD chaque 3 mois",
+}
+
+HINWEIS_FR: dict[str, str] = {
+    "CHAIR_J0_DESINFEKTION": "0,5 g/l — avant la mise en place, 2 jours en présence des poussins",
+    "CHAIR_J1_ND_IB": "En goutte oculaire ou en nébulisation, au couvoir",
+    "CHAIR_J18_GUMBORO_3": "Uniquement pour les zones à forte pression virale",
+    "PONDEUSE_J0_EINSTREU": "Avant la mise en place et deux jours en présence des poussins",
+    "PONDEUSE_J1_ND_INAKTIVIERT": "Au couvoir — ou à la ferme à J3",
+    "PONDEUSE_J7_GUMBORO_1": "En goutte oculaire ou en eau de boisson",
+    "PONDEUSE_W5_VARIOLE": "VECTORMUNE FP-MG protège en plus contre les mycoplasmes",
+    "PONDEUSE_W7_DEBECQUAGE": "Vitamine K et fortifiant de j-1 à j+2 — voir l'étape suivante",
+    "PONDEUSE_W7_VITAMIN_K": ("Fenêtre relative au jour réel du débecquage, pas à la semaine"),
+    "PONDEUSE_W11_CORYZA": "CORYMUNE 4K protège en plus contre les salmonelles",
+    "PONDEUSE_W16_CORYZA_KOMBI": "CORYMUNE 7K protège en plus contre les salmonelles",
+    "PONTE_ENTWURMUNG": "Chaque mois, en alternant la matière active",
+    "PONTE_VITAMINE": "Tous les deux mois",
+    "PONTE_ND": "Éviter la souche LASOTA avant le pic de ponte",
+    "PONTE_IB_H120": "En alternance avec CEVAC IBIRD",
+    "PONTE_IB_IBIRD": "Chaque trois mois",
+}
+
+
+WORTLAUT_VETO: dict[str, str] = {
+    "VETO_J1_ANTISTRESS": "ANTI-STRESS (eau de boisson)",
+    "VETO_J5_ND_IB": ("VACCINATION CONTRE LA NEWCASTLE + BRONCHITE INFECTIEUSE (eau de boisson)"),
+    "VETO_J6_VITAMINE": "VITAMINE (eau de boisson)",
+    "VETO_J7_GUMBORO_1": "1ère VACCINATION GUMBORO (eau de boisson)",
+    "VETO_J13_VITAMINE": "VITAMINE (eau de boisson)",
+    "VETO_J14_GUMBORO_2": "2ème VACCINATION GUMBORO (eau de boisson)",
+    # Die Zeile trägt auf dem Blatt „ANTI-STRESS“, nennt aber ein
+    # Antikokzidium. Der Wortlaut bleibt stehen, der Befund erklärt ihn.
+    "VETO_J17_ANTIKOKZIDIUM": "ANTI-STRESS (eau de boisson) — COX B3 ou AMPROLIUM",
+    "VETO_J21_GUMBORO_3": "3ème VACCINATION GUMBORO (eau de boisson)",
+    "VETO_J22_LEBERSCHUTZ": "HEPATOPROTECTEUR (eau de boisson)",
+    "VETO_J25_ND_IB": ("VACCINATION CONTRE LA NEWCASTLE + BRONCHITE INFECTIEUSE (eau de boisson)"),
+    "VETO_J35_ND": "VACCINATION CONTRE LA NEWCASTLE",
+    "VETO_J42_POCKEN": "VACCINATION CONTRE LA VARIOLE (transfixion alaire)",
+    "VETO_J46_ANTIKOKZIDIUM": "ANTICOCCIDIEN (eau de boisson)",
+    "VETO_J50_ENTWURMUNG": "DEPARASITAGE INTERNE (eau de boisson)",
+    "VETO_J51_LEBERSCHUTZ": "HEPATOPROTECTEUR (eau de boisson)",
+    "VETO_J84_CORYZA": (
+        "VACCINATION CONTRE LA CORYZA (A, B, C) et la SALMONELLOSE (intramusculaire)"
+    ),
+    "VETO_J88_ENTWURMUNG": "DEPARASITAGE INTERNE (eau de boisson)",
+    "VETO_J92_ANTIKOKZIDIUM": "ANTICOCCIDIEN (eau de boisson)",
+    "VETO_J97_LEBERSCHUTZ": "HEPATOPROTECTEUR (eau de boisson)",
+    "VETO_J120_KOMBI": (
+        "VACCINATION : CORYZA + SALMONELLOSE + ENTERITE + NEWCASTLE + "
+        "BRONCHITE + SYNDROME CHUTE DE PONTE (intramusculaire)"
+    ),
+    "VETO_J124_ENTWURMUNG": "DEPARASITAGE INTERNE ET EXTERNE (eau de boisson)",
+    "VETO_J125_ANTISTRESS": "ANTI-STRESS (eau de boisson)",
+    "VETO_J128_FUEHRUNG": "BONNE CONDUITE D'ELEVAGE jusqu'à la Réforme",
+    "VETO_DAUER_ENTWURMUNG": "Penser au déparasitage à chaque deux mois (eau de boisson)",
+    "VETO_DAUER_ND_IB": (
+        "Tous les 6 mois, les rappels de vaccination contre la Newcastle et "
+        "la bronchite infectieuse"
+    ),
+}
+
+HINWEIS_FR_VETO: dict[str, str] = {
+    "VETO_J84_CORYZA": "Intramusculaire (IM)",
+    "VETO_J120_KOMBI": ("Intramusculaire (IM) — la dernière grande intervention avant la ponte"),
+    "VETO_J128_FUEHRUNG": (
+        "À partir d'ici c'est la conduite d'élevage qui porte ; le "
+        "déparasitage continue tous les deux mois."
+    ),
+    "VETO_DAUER_ENTWURMUNG": "« Penser au déparasitage à chaque deux mois » — à partir de J128",
+    "VETO_DAUER_ND_IB": (
+        "« Tous les 6 mois » — bien plus espacé que dans le programme IVOGRAIN (tous les 30 jours)"
+    ),
+}
+
+
+_T = TypeVar("_T", Schritt, Dauerregel)
+
+
+def _mit_wortlaut(
+    schritte: list[_T], woerter: dict[str, str], hinweise: dict[str, str]
+) -> list[_T]:
+    """Den Wortlaut des Blattes an die Schritte hängen.
+
+    Gesetzt wird nur, was noch nichts hat — was direkt am Schritt steht
+    (die Anti-Stress- und Pausen-Bauer tun das), bleibt stehen.
+    """
+    raus: list[_T] = []
+    for s in schritte:
+        neu: dict[str, str] = {}
+        if s.titel_fr is None and s.key in woerter:
+            neu["titel_fr"] = woerter[s.key]
+        if s.hinweis_fr is None and s.key in hinweise:
+            neu["hinweis_fr"] = hinweise[s.key]
+        raus.append(s.model_copy(update=neu) if neu else s)
+    return raus
+
+
+PROGRAMM_MASTHUHN = _mit_wortlaut(PROGRAMM_MASTHUHN, WORTLAUT_CHAIR, HINWEIS_FR)
+PROGRAMM_LEGEHENNE = _mit_wortlaut(PROGRAMM_LEGEHENNE, WORTLAUT_PONDEUSE, HINWEIS_FR)
+WIEDERKEHREND_LEGEPHASE = _mit_wortlaut(WIEDERKEHREND_LEGEPHASE, WORTLAUT_PONDEUSE, HINWEIS_FR)
+PROGRAMM_LEGEHENNE_VETO = _mit_wortlaut(PROGRAMM_LEGEHENNE_VETO, WORTLAUT_VETO, HINWEIS_FR_VETO)
+WIEDERKEHREND_VETO = _mit_wortlaut(WIEDERKEHREND_VETO, WORTLAUT_VETO, HINWEIS_FR_VETO)
+
+
 # --- Die Blätter als Ganzes, wählbar je Herde ---------------------------
 
 HINWEISE_IVOGRAIN = [
@@ -1068,6 +1283,7 @@ PROGRAMME: list[Programm] = [
     Programm(
         programm_id="IVOGRAIN_CHAIR",
         titel="Masthuhn — IVOGRAIN",
+        titel_fr="Poulets de chair — IVOGRAIN",
         tierart=Tierart.MASTHUHN,
         quelle=IVOGRAIN,
         herausgeber="IVOGRAIN",
@@ -1078,6 +1294,7 @@ PROGRAMME: list[Programm] = [
     Programm(
         programm_id="IVOGRAIN_PONDEUSE",
         titel="Legehenne — IVOGRAIN",
+        titel_fr="Poulettes futures pondeuses — IVOGRAIN",
         tierart=Tierart.LEGEHENNE,
         quelle=IVOGRAIN,
         herausgeber="IVOGRAIN",
@@ -1089,6 +1306,7 @@ PROGRAMME: list[Programm] = [
     Programm(
         programm_id="VETO_PONDEUSE",
         titel="Legehenne — VETO-NEGOCES",
+        titel_fr="Pondeuses — VETO-NEGOCES",
         tierart=Tierart.LEGEHENNE,
         quelle=VETO,
         herausgeber="VETO-NEGOCES / TCHA AGGRO CENTER, Dr. BANGUE",

@@ -117,6 +117,12 @@ class Schritt(_Basis):
     vorlauf_tage: int = 0
     folgt_auf: str | None = None
     hinweis: str | None = None
+    titel_fr: str | None = Field(
+        default=None,
+        description="Wortlaut des Blattes — die Blätter SIND französisch, "
+        "der deutsche Titel ist die Übersetzung",
+    )
+    hinweis_fr: str | None = None
     dosis_je_liter: str | None = Field(
         default=None,
         description="Dosierung wörtlich vom Blatt, z. B. '1 g/l' oder '2 ml/l'",
@@ -202,6 +208,8 @@ class Termin(_Basis):
     ampel: Ampel
     bedingt: str | None = None
     hinweis: str | None = None
+    titel_fr: str | None = None
+    hinweis_fr: str | None = None
     dosis_je_liter: str | None = None
     quelle: str = ""
     erledigt_am: date | None = None
@@ -218,6 +226,8 @@ class Dauerregel(_Basis):
     praeparate: list[str] = Field(default_factory=list)
     intervall_tage: int
     hinweis: str | None = None
+    titel_fr: str | None = None
+    hinweis_fr: str | None = None
     dosis_je_liter: str | None = None
     ab_tag: int | None = Field(
         default=None,
@@ -244,6 +254,7 @@ class Programm(_Basis):
 
     programm_id: str
     titel: str
+    titel_fr: str | None = None
     tierart: Tierart
     quelle: str = Field(description="Wer das Blatt herausgibt")
     herausgeber: str | None = Field(default=None, description="Praxis, Person, Kontakt")
@@ -434,6 +445,7 @@ class Posten(_Basis):
 class Rezept(_Basis):
     key: str
     name: str
+    name_fr: str | None = None
     tierart: Tierart
     von_woche: int
     bis_woche: int | None = None
@@ -498,6 +510,7 @@ class Tagesbild(_Basis):
     alter_wochen: int
     programm_id: str = ""
     programm_titel: str = ""
+    programm_titel_fr: str | None = None
     phase: Rezept | None = None
     ueberfaellig: list[Termin] = Field(default_factory=list)
     heute: list[Termin] = Field(default_factory=list)

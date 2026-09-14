@@ -328,15 +328,28 @@ Unbekannte Einstellungsschlüssel werden abgewiesen, nicht abgelegt.
 Die Quellblätter sind französisch, die Leute im Stall vermutlich auch. Die
 Oberfläche lässt sich im Kopf umschalten (Deutsch / Français).
 
-Drei Entscheidungen:
+Vier Entscheidungen:
 
+* **Die Termine sprechen den Wortlaut ihres Blattes, nicht eine
+  Rückübersetzung.** Die Blätter *sind* französisch; der deutsche Titel im
+  Code ist die Übersetzung. Also trägt jeder Schritt sein Original
+  (`Schritt.titel_fr`), gesammelt in `WORTLAUT_*` — so kann jemand mit dem
+  Papier in der Hand Zeile für Zeile gegenlesen. Ein Wörterbuch hätte aus
+  „2ème Vaccin GUMBORO“ eine glatte Übersetzung gemacht und den
+  Widerspruch des Blattes dabei weggebügelt.
 * **Nur die Oberfläche wird übersetzt, nicht die Daten.** Präparatnamen,
   Rezeptposten und Befunde bleiben, wie sie sind — ein Befund, der in der
   Übersetzung eine Nuance verliert, ist schlimmer als einer auf Deutsch.
-* **Fehlt eine Vokabel, steht der deutsche Text da** — kein leeres Feld,
-  kein Schlüsselname.
+  Ein Feld `praeparate_fr` gibt es deshalb nicht; ein Test hält das fest.
+* **Fehlt eine Vokabel oder ein Wortlaut, steht der deutsche Text da** —
+  kein leeres Feld, kein Schlüsselname.
 * **Die Wahl lebt im Browser**, nicht in der Datenbank: die Sprache gehört
   dem Menschen vor dem Gerät, nicht dem Konto.
+
+Zwei Tests bewachen das von beiden Seiten: `test_sprache.py` prüft, dass
+kein Text im Markup ohne Vokabel ist, `test_wortlaut.py`, dass kein Termin
+ohne französischen Wortlaut ausgeliefert wird. Das zweite fehlte — und
+genau da blieb die Ansicht halb deutsch.
 
 ## Betriebsalltag
 

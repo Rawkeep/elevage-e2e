@@ -272,3 +272,23 @@ def test_die_merksaetze_des_blattes_sind_erreichbar():
 def test_der_tierarzt_steht_am_betrieb():
     assert 'id="block-tierarzt"' in SEITE
     assert "bild.tierarzt" in SEITE
+
+
+def test_die_franzoesische_ansicht_nimmt_den_wortlaut_des_blattes():
+    """Ein Fund aus dem Betrieb: die Termine blieben deutsch, weil sie als
+    Daten kommen und das Wörterbuch nur ins Markup schaut. Die Blätter SIND
+    französisch — also steht dort ihr Original, keine Rückübersetzung."""
+    assert "function wortlaut(objekt, feld)" in SEITE
+    assert 'wortlaut(t, "titel")' in SEITE
+    assert 'wortlaut(t, "hinweis")' in SEITE
+    assert 'wortlaut(bild.phase, "name")' in SEITE
+    assert "bild.programmTitelFr" in SEITE
+
+
+def test_fehlt_der_wortlaut_bleibt_es_deutsch():
+    """Dieselbe Regel wie im Wörterbuch: kein leeres Feld, kein Schlüsselname."""
+    assert 'return SPRACHE === "fr" && fr ? fr : objekt[feld];' in SEITE
+
+
+def test_die_dosis_steht_am_posten():
+    assert "t.dosisJeLiter" in SEITE

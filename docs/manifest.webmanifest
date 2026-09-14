@@ -1,0 +1,26 @@
+{
+  "name": "Taktgeber — Prophylaxe und Fütterung (Demo)",
+  "short_name": "Taktgeber",
+  "description": "Impftermine, Futterwechsel und Mischaufträge je Herde.",
+  "start_url": "./",
+  "scope": "./",
+  "display": "standalone",
+  "orientation": "portrait-primary",
+  "background_color": "#f6f1e9",
+  "theme_color": "#134e57",
+  "lang": "fr",
+  "icons": [
+    {
+      "src": "zeichen.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any"
+    },
+    {
+      "src": "zeichen.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "maskable"
+    }
+  ]
+}

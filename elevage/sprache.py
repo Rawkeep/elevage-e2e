@@ -35,7 +35,7 @@ FRANZOESISCH: dict[str, str] = {
     "Prophylaxe und Fütterung je Herde": "Prophylaxie et alimentation par bande",
     "Herde": "Bande",
     "Stichtag": "Date de référence",
-    "Futtervorrat (kg)": "Stock d'aliment (kg)",
+    "Futtervorrat (kg)": "Stock (kg)",
     "Anzeigen": "Afficher",
     "Ansicht wechseln": "Changer l'affichage",
     "Abmelden": "Se déconnecter",
@@ -76,6 +76,54 @@ FRANZOESISCH: dict[str, str] = {
     "Ruhe": "Repos",
     "Merksätze des Blattes": "Consignes du programme",
     "Tierarzt": "Vétérinaire",
+    # Die Antwortzeile ganz oben
+    "1 Aufgabe ist überfällig": "1 tâche est en retard",
+    "Aufgaben sind überfällig": "tâches sont en retard",
+    "1 Aufgabe steht heute an": "1 tâche est à faire aujourd'hui",
+    "Aufgaben stehen heute an": "tâches sont à faire aujourd'hui",
+    "Heute ist nichts fällig.": "Rien à faire aujourd'hui.",
+    "Als Nächstes": "Ensuite",
+    # Die Bereichsleiste
+    "Heute": "Aujourd'hui",
+    "Prüfen": "Vérifier",
+    "Bereiche": "Rubriques",
+    "Hier ist gerade nichts.": "Rien ici pour le moment.",
+    "Menü": "Menu",
+    # Der erste Bildschirm eines neuen Betriebs
+    "Noch keine Herde": "Aucune bande pour l'instant",
+    "Der Taktgeber rechnet alles aus dem Einstalldatum: Impftermine, "
+    "Futterwechsel, Verzehr und Mischauftrag. Ohne eine eingestallte Herde "
+    "gibt es nichts zu takten.": (
+        "Le Cadenceur calcule tout à partir de la date de mise en place : "
+        "échéances de vaccination, transitions alimentaires, consommation et "
+        "ordre de mélange. Sans bande mise en place, il n'y a rien à cadencer."
+    ),
+    "Auf dem Rechner, auf dem der Taktgeber läuft:": ("Sur la machine où tourne le Cadenceur :"),
+    "Danach diese Seite neu laden. Welches Prophylaxe-Blatt gilt, lässt sich jederzeit wechseln.": (
+        "Rechargez ensuite cette page. Le programme de prophylaxie qui "
+        "s'applique peut être changé à tout moment."
+    ),
+    # Die Anmeldeseite erklärt, wofür man sich anmeldet.
+    "Sagt jeden Tag, welche Impfung, Entwurmung oder Futterumstellung "
+    "ansteht — gerechnet aus dem Einstalldatum.": (
+        "Indique chaque jour quelle vaccination, quel déparasitage ou quelle "
+        "transition alimentaire arrive — calculé à partir de la date de mise "
+        "en place."
+    ),
+    "Rechnet den Mischauftrag und sperrt ihn, wenn das Rezept nicht aufgeht.": (
+        "Calcule l'ordre de mélange et le bloque si la formule ne tombe pas juste."
+    ),
+    "Merkt sich, was abgehakt wurde, und meldet, was überfällig ist.": (
+        "Retient ce qui a été coché et signale ce qui est en retard."
+    ),
+    "Der Plan entscheidet, nicht das Gefühl. Jeder Termin kommt aus einer "
+    "Subtraktion, keiner aus einer Schätzung.": (
+        "C'est le programme qui décide, pas l'impression. Chaque échéance vient "
+        "d'une soustraction, aucune d'une estimation."
+    ),
+    "In den nächsten sieben Tagen steht nichts an.": (
+        "Rien de prévu dans les sept prochains jours."
+    ),
     # Das Band der öffentlichen Demo — sonst bliebe es als Einziges deutsch.
     "Demo mit erfundenen Betriebsdaten": "Démonstration avec des données inventées",
     "Eingaben bleiben im Browser, es wird nichts gespeichert.": (

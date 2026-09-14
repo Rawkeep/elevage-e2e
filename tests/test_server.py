@@ -578,3 +578,26 @@ def test_ohne_namen_kein_tierarzt(angemeldet):
     with pytest.raises(HTTPError) as fehler:
         angemeldet.sende("/api/tierarzt", {"telefon": "0000"})
     assert fehler.value.code == 400
+
+
+def test_das_manifest_kommt_ohne_anmeldung(dienst):
+    """Der Browser holt es, bevor jemand angemeldet ist — und auf einer
+    frischen Installation, bevor es überhaupt Benutzer gibt."""
+    with urlopen(dienst + "/manifest.webmanifest", timeout=10) as antwort:
+        daten = json.loads(antwort.read())
+        assert antwort.headers["Content-Type"].startswith("application/manifest+json")
+    assert daten["display"] == "standalone"
+
+
+def test_das_zeichen_kommt_vom_eigenen_server(dienst):
+    with urlopen(dienst + "/zeichen.svg", timeout=10) as antwort:
+        text = antwort.read().decode()
+        assert antwort.headers["Content-Type"].startswith("image/svg+xml")
+    assert text.startswith("<svg")
+
+
+def test_die_eigene_csp_erlaubt_das_eigene_manifest(angemeldet):
+    with angemeldet.roh("/") as antwort:
+        csp = antwort.headers["Content-Security-Policy"]
+    assert "manifest-src 'self'" in csp
+    assert "img-src data: 'self'" in csp

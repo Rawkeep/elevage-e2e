@@ -2,7 +2,7 @@
 
 import re
 
-from elevage.seite import SEITE
+from elevage.seite import ANMELDESEITE, SEITE
 
 SVG_NAMENSRAUM = "http://www.w3.org/2000/svg"
 """Der einzige erlaubte http-Text in der Seite.
@@ -196,11 +196,16 @@ def test_der_grund_kostet_keine_bytes():
 
 
 def test_die_seite_steht_in_wenigen_karten():
-    """Elf gestapelte Karten waren auf jeder Breite eine Wand. Die Abschnitte
-    leben jetzt als Blöcke in vier Karten (Stand, Was zu tun ist, Eintragen,
-    Zu prüfen); dazu kommen Band, Kopfzeile und Zustandszeile — die Zahl ist
-    der Test."""
-    assert SEITE.count('class="karte glas') <= 7
+    """Elf gestapelte Karten waren auf jeder Breite eine Wand. Der Inhalt
+    liegt jetzt in genau vier Bereichen — und jeder hat auf dem Handy seinen
+    Knopf in der Leiste. Die Zahl ist der Test; sie zu erhöhen heißt, die
+    Leiste mitzuändern."""
+    markup = SEITE.split("<script>")[0]
+    markup = re.sub(r"<style>.*?</style>", "", markup, flags=re.S)
+    bereiche = re.findall(r'data-bereich="([a-z]+)"', markup)
+    assert sorted(bereiche) == ["eintragen", "heute", "pruefen", "stand"]
+    ziele = re.findall(r'data-ziel="([a-z]+)"', SEITE)
+    assert sorted(ziele) == sorted(bereiche)
     for klasse in (".raster", ".spalte", ".stand", ".block"):
         assert klasse in SEITE, klasse
     # Zwei Spalten erst, wenn Platz da ist; darunter bleibt es eine Säule.
@@ -315,3 +320,100 @@ def test_die_gewaehlte_ausgleichsart_ist_lesbar():
     ):
         assert kurz in SEITE, kurz
     assert "über den Energieträger ausgleichen" not in SEITE
+
+
+# --- Es soll sich wie eine App anfühlen ---------------------------------
+
+
+def test_die_seite_ist_installierbar():
+    """Ohne Manifest ist es eine Webseite, mit Manifest eine App."""
+    import json
+
+    from elevage.seite import MANIFEST, ZEICHEN
+
+    daten = json.loads(MANIFEST)
+    assert daten["display"] == "standalone"
+    assert daten["start_url"] == "/" and daten["scope"] == "/"
+    assert daten["theme_color"] and daten["background_color"]
+    assert {i["purpose"] for i in daten["icons"]} == {"any", "maskable"}
+    assert '<link rel="manifest" href="/manifest.webmanifest">' in SEITE
+    assert '<meta name="theme-color"' in SEITE
+    # Das Zeichen ist gezeichnet, nicht geladen.
+    assert ZEICHEN.startswith("<svg") and "http" not in ZEICHEN.replace(SVG_NAMENSRAUM, "")
+
+
+def test_die_eine_frage_wird_oben_beantwortet():
+    """Was ist jetzt zu tun? Nicht aus drei Blöcken zusammensuchen."""
+    assert 'id="jetzt-satz"' in SEITE
+    assert "function jetztSatz()" in SEITE
+    for zustand in (
+        "1 Aufgabe ist überfällig",
+        "1 Aufgabe steht heute an",
+        "Heute ist nichts fällig.",
+    ):
+        assert zustand in SEITE, zustand
+    # Auch der ruhige Fall sagt etwas: wann es weitergeht.
+    assert 'txt("Als Nächstes")' in SEITE
+
+
+def test_die_ampel_steht_nur_noch_an_einer_stelle():
+    """Sie stand zweimal da — im Kopf und im Stand. Das ist dieselbe Aussage."""
+    assert 'class="lage"' not in SEITE
+
+
+def test_vier_bereiche_und_vier_knoepfe():
+    markup = SEITE.split("<script>")[0]
+    markup = re.sub(r"<style>.*?</style>", "", markup, flags=re.S)
+    assert sorted(re.findall(r'data-bereich="([a-z]+)"', markup)) == [
+        "eintragen",
+        "heute",
+        "pruefen",
+        "stand",
+    ]
+    assert "function bereichWaehlen(" in SEITE
+    # Die Leiste gehört zur schmalen Ansicht, nicht zum Schirm.
+    assert 'window.matchMedia("(max-width: 61.99rem)")' in SEITE
+    assert "@media (min-width: 62rem) { #leiste { display: none; }" in SEITE
+
+
+def test_die_knoepfe_tragen_ihre_zahl():
+    """Man soll sehen, wo etwas liegt, ohne hinzugehen."""
+    assert 'data-marke="heute"' in SEITE and 'data-marke="pruefen"' in SEITE
+    assert "function marken()" in SEITE
+    assert ".marke:empty { display: none; }" in SEITE
+
+
+def test_ein_leerer_bereich_ist_keine_leere_seite():
+    assert 'id="nichts"' in SEITE
+    assert "function zeigeLeere()" in SEITE
+
+
+def test_die_symbole_sind_gezeichnet_keine_emoji():
+    """Emoji sehen auf jedem System anders aus — und die Design-Regel des
+    Hauses zieht dafür Punkte ab."""
+    leiste = SEITE[SEITE.index('<nav class="leiste') : SEITE.index("</nav>")]
+    assert leiste.count('class="leiste-zeichen"') == 4
+    assert 'stroke="currentColor"' in leiste
+    assert not re.search(r"[\U0001F300-\U0001FAFF]", leiste)
+
+
+def test_einstellungen_liegen_hinter_einem_knopf():
+    """Sprache, Ansicht und Abmelden sind Einstellungen, keine Arbeit."""
+    assert 'class="menue"' in SEITE
+    assert ".menue:not([open]) > .werkzeuge { display: none; }" in SEITE
+    assert "@media (min-width: 62rem) {\n  .menue > summary { display: none; }" in SEITE
+
+
+def test_der_erste_bildschirm_erklaert_sich():
+    """Eine Zeile „keine Herde“ sagt, dass nichts da ist — nicht, wie
+    etwas hinkommt."""
+    assert 'id="anfang"' in SEITE
+    assert "elevage einstallen --herde H1" in SEITE
+    assert "Ohne eine eingestallte Herde" in SEITE
+
+
+def test_die_anmeldeseite_sagt_worum_es_geht():
+    assert "Prophylaxe und Fütterung je Herde" in ANMELDESEITE
+    assert 'class="wozu"' in ANMELDESEITE
+    assert ANMELDESEITE.count("<li>") >= 3
+    assert "Der Plan entscheidet, nicht das Gefühl." in ANMELDESEITE

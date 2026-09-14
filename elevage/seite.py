@@ -103,6 +103,44 @@ FAVICON = (
 Ohne dieses Zeichen fragt jeder Browser /favicon.ico an und bekommt 404."""
 
 
+ZEICHEN = (
+    "<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 192 192'>"
+    "<rect width='192' height='192' rx='36' fill='#134e57'/>"
+    "<rect x='48' y='42' width='96' height='24' rx='12' fill='#faf7f2'/>"
+    "<rect x='48' y='84' width='96' height='24' rx='12' fill='#e0b352'/>"
+    "<rect x='48' y='126' width='96' height='24' rx='12' fill='#f09077'/>"
+    "</svg>"
+)
+"""Dasselbe Zeichen wie das Favicon, nur groß — für den Startbildschirm.
+
+Ein SVG statt PNG: ein Bild in jeder Größe, ohne Datei und ohne Bytes zu
+verschwenden. Ausgeliefert wird es vom eigenen Server, nicht als data:-URL —
+einige Browser laden Manifest-Icons nicht aus data:."""
+
+MANIFEST = """{
+  "name": "Taktgeber — Prophylaxe und F\\u00fctterung",
+  "short_name": "Taktgeber",
+  "description": "Impftermine, Futterwechsel und Mischauftr\\u00e4ge je Herde.",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "orientation": "portrait-primary",
+  "background_color": "#f6f1e9",
+  "theme_color": "#134e57",
+  "lang": "fr",
+  "icons": [
+    {"src": "/zeichen.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any"},
+    {"src": "/zeichen.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "maskable"}
+  ]
+}
+"""
+"""Ohne Manifest ist es eine Webseite, mit Manifest eine App.
+
+`display: standalone` nimmt die Adressleiste weg, `start_url` und `scope`
+halten die Installation auf dieser Anwendung. Die Farben sind die des
+Themas — sonst blitzt beim Start ein weißer Rahmen auf."""
+
+
 UEBERSETZER = """
 // Nur die Oberfläche wird über dieses Wörterbuch übersetzt. Präparatnamen
 // und Rezeptposten bleiben, wie sie sind; Schritte und Befunde tragen ihre
@@ -330,6 +368,9 @@ h2 + .block > h3, .stand > .block > h3 { margin-top: 0; }
 .kopf > .feld { flex: 1 1 11rem; min-width: 0; }
 .kopf > .feld.schmal { flex: 1 1 7rem; }
 .kopf > button { flex: 0 0 auto; }
+/* Auf dem Handy ist der Knopf die Handlung: volle Breite, ein Ziel fuer
+   den Daumen statt eines Restes am Zeilenende. */
+@media (max-width: 30rem) { .kopf > button.tat { flex: 1 1 100%; } }
 .feld > select, .feld > input { width: 100%; }
 select { text-overflow: ellipsis; }
 
@@ -348,6 +389,33 @@ li.posten .reihe > :first-child { flex: 1 1 16rem; min-width: 0; }
 li.posten .reihe > :last-child { flex: 0 0 auto; text-align: right; }
 header .reihe { align-items: center; }
 .werkzeuge { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+/* Sprache, Ansicht und Abmelden sind Einstellungen, keine Arbeit. Auf dem
+   Handy liegen sie hinter einem Knopf; am Schirm ist Platz, da stehen sie. */
+.menue { border: 0; padding: 0; margin: 0; }
+.menue > summary { min-height: var(--ziel); justify-content: center; }
+.menue > summary::before { display: none; }
+.menue > summary > span { font-size: 1.5rem; line-height: 1; }
+/* Zugeklappt heisst zugeklappt: `.werkzeuge` setzt display:flex, und das
+   schlaegt die Browser-Regel, die die Kinder eines geschlossenen <details>
+   versteckt. Derselbe Stolperstein wie beim Toast. */
+.menue:not([open]) > .werkzeuge { display: none; }
+.menue > :not(summary) { margin-top: 10px; }
+@media (max-width: 61.99rem) {
+  .menue[open] > .werkzeuge {
+    position: absolute; inset-inline-end: 0; inset-block-start: 100%;
+    z-index: 15; flex-direction: column; align-items: stretch;
+    min-width: 13rem; padding: 12px; border-radius: var(--radius);
+    background: var(--glas-stark); border: 1px solid var(--kante);
+    box-shadow: var(--schatten);
+    -webkit-backdrop-filter: var(--blur); backdrop-filter: var(--blur);
+  }
+  header .reihe { position: relative; }
+}
+@media (min-width: 62rem) {
+  .menue > summary { display: none; }
+  .menue > :not(summary) { margin-top: 0; }
+  .menue { display: block; }
+}
 .werkzeuge label { margin: 0; }
 .werkzeuge select, .werkzeuge button { min-height: 38px; }
 
@@ -360,11 +428,18 @@ header .reihe { align-items: center; }
 }
 .tafel dd { margin: 0; min-width: 0; overflow-wrap: anywhere; }
 
-.lage {
-  display: inline-flex; align-items: center; gap: 8px; font-weight: 700;
-  padding: 5px 14px; border-radius: 999px; border: 2px solid currentColor;
-  max-width: 100%;
+/* Die Antwortzeile: der einzige große Text der Seite außer dem Titel. */
+.jetzt { display: flex; flex-direction: column; gap: 4px; }
+.jetzt-satz {
+  margin: 0; font-size: 1.15rem; font-weight: 700; line-height: 1.35;
+  display: flex; align-items: baseline; gap: 10px; flex-wrap: wrap;
 }
+.jetzt-dazu { margin: 0; font-size: .95rem; }
+.jetzt.ROT .jetzt-satz { color: var(--terrakotta); }
+.jetzt.GELB .jetzt-satz { color: var(--ocker); }
+.jetzt.GRUEN .jetzt-satz { color: var(--petrol); }
+@media (min-width: 46rem) { .jetzt-satz { font-size: 1.3rem; } }
+
 .ROT { color: var(--terrakotta); }
 .GELB { color: var(--ocker); }
 .GRUEN, .ERLEDIGT { color: var(--petrol); }
@@ -411,7 +486,57 @@ summary:hover { color: var(--text); }
 .anzahl:not(:empty)::after { content: ")"; }
 details > :not(summary) { margin-top: 10px; }
 
+/* --- Die Bereichsleiste (nur Handy und Tablett) ------------------- */
+.leiste {
+  position: fixed; inset-inline: 0; inset-block-end: 0; z-index: 20;
+  /* Kräftiger als die Karten: was darunter durchscrollt, darf die
+     Beschriftung nicht stören. */
+  background: var(--glas-stark);
+  display: grid; grid-template-columns: repeat(4, 1fr);
+  border-radius: 0; border-block-start: 1px solid var(--kante);
+  padding-block-end: env(safe-area-inset-bottom, 0);
+}
+.leiste button {
+  background: none; border: 0; border-radius: 0; box-shadow: none;
+  min-height: 58px; padding: 6px 2px 8px;
+  display: flex; flex-direction: column; align-items: center; justify-content: center;
+  gap: 2px; font-size: .72rem; font-weight: 650; color: var(--leise);
+  letter-spacing: .02em; position: relative;
+}
+.leiste button:hover { border-color: transparent; }
+.leiste .leiste-zeichen { width: 21px; height: 21px; }
+.leiste button[aria-current="true"] { color: var(--petrol); }
+.leiste button[aria-current="true"]::before {
+  content: ""; position: absolute; inset-block-start: 0; inset-inline: 22%;
+  height: 3px; border-radius: 0 0 3px 3px; background: currentColor;
+}
+.marke {
+  position: absolute; inset-block-start: 5px; inset-inline-start: 50%;
+  margin-inline-start: 5px; min-width: 18px; padding: 0 5px;
+  border-radius: 999px; background: var(--terrakotta); color: var(--grund);
+  font-size: .68rem; line-height: 18px; font-variant-numeric: tabular-nums;
+}
+.marke:empty { display: none; }
+
+@media (max-width: 61.99rem) {
+  body.bereiche { padding-block-end: 72px; }
+  /* Sichtbar ist genau ein Bereich — das ist der Unterschied zwischen
+     einer App und einer langen Seite. */
+  body.bereiche [data-bereich] { display: none; }
+  body.bereiche[data-offen="heute"] [data-bereich="heute"],
+  body.bereiche[data-offen="stand"] [data-bereich="stand"],
+  body.bereiche[data-offen="eintragen"] [data-bereich="eintragen"],
+  body.bereiche[data-offen="pruefen"] [data-bereich="pruefen"] { display: block; }
+  body.bereiche[data-offen="stand"] [data-bereich="stand"] { display: grid; }
+}
+@media (min-width: 62rem) { #leiste { display: none; } #nichts { display: none; } }
+
 .breit { overflow-x: auto; }
+#anfang pre {
+  margin: 8px 0 12px; padding: 12px 14px; border-radius: 10px;
+  background: var(--gruen-feld); border: 1px solid var(--kante);
+  font-size: .86rem; line-height: 1.5;
+}
 table { width: 100%; border-collapse: collapse; font-variant-numeric: tabular-nums; }
 th, td { text-align: left; padding: 6px 8px; border-bottom: 1px solid var(--kante); }
 td.zahl, th.zahl { text-align: right; white-space: nowrap; }
@@ -448,6 +573,12 @@ _KOPF = """<!doctype html>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <link rel="icon" href="FAVICON_HIER">
+<link rel="manifest" href="/manifest.webmanifest">
+<link rel="apple-touch-icon" href="/zeichen.svg">
+<meta name="theme-color" content="#134e57">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="description" content="Impftermine, Futterwechsel und Mischaufträge je Herde.">
 <title>Taktgeber</title>
 <style>"""
 
@@ -470,16 +601,19 @@ _SEITE_MARKUP = """
       <h1>Taktgeber</h1>
       <p class="leise" id="unterzeile" style="margin:0">Prophylaxe und Fütterung je Herde</p>
     </div>
-    <div class="werkzeuge">
-      <span class="leise" id="wer"></span>
-      <label for="sprache" class="leise">Sprache</label>
-      <select id="sprache">
-        <option value="de">Deutsch</option>
-        <option value="fr">Français</option>
-      </select>
-      <button class="still" id="thema" type="button">Ansicht wechseln</button>
-      <button class="still" id="abmelden" type="button">Abmelden</button>
-    </div>
+    <details class="menue" id="menue">
+      <summary aria-label="Menü"><span aria-hidden="true">⋯</span></summary>
+      <div class="werkzeuge">
+        <span class="leise" id="wer"></span>
+        <label for="sprache" class="leise">Sprache</label>
+        <select id="sprache">
+          <option value="de">Deutsch</option>
+          <option value="fr">Français</option>
+        </select>
+        <button class="still" id="thema" type="button">Ansicht wechseln</button>
+        <button class="still" id="abmelden" type="button">Abmelden</button>
+      </div>
+    </details>
   </div>
   <div class="kopf" style="margin-top:14px">
     <div class="feld"><label for="herde">Herde</label><select id="herde"></select></div>
@@ -493,13 +627,31 @@ _SEITE_MARKUP = """
 
 <p id="zustand" class="karte glas" role="status">Lade …</p>
 
-<section class="karte glas stand" id="kopfzahlen" hidden>
+<!-- Der erste Bildschirm eines neuen Betriebs. Eine Zeile „keine Herde“
+     sagt, dass nichts da ist — nicht, wie etwas hinkommt. -->
+<section class="karte glas" id="anfang" hidden>
+  <h2>Noch keine Herde</h2>
+  <p>Der Taktgeber rechnet alles aus dem Einstalldatum: Impftermine,
+     Futterwechsel, Verzehr und Mischauftrag. Ohne eine eingestallte Herde
+     gibt es nichts zu takten.</p>
+  <p class="leise">Auf dem Rechner, auf dem der Taktgeber läuft:</p>
+  <pre class="breit"><code>elevage einstallen --herde H1 --name "Stall Nord" \
+    --tierart LEGEHENNE --einstall 2026-03-02 --tiere 1200</code></pre>
+  <p class="leise winzig">Danach diese Seite neu laden. Welches
+     Prophylaxe-Blatt gilt, lässt sich jederzeit wechseln.</p>
+</section>
+
+<!-- Die eine Frage, die jemand im Stall hat: was ist jetzt zu tun?
+     Sie wird hier beantwortet, statt aus drei Blöcken zusammengesucht. -->
+<section class="karte glas jetzt" id="jetzt" hidden aria-live="polite">
+  <p class="jetzt-satz" id="jetzt-satz"></p>
+  <p class="jetzt-dazu leise" id="jetzt-dazu"></p>
+</section>
+
+<section class="karte glas stand" id="kopfzahlen" data-bereich="stand" hidden>
   <div>
     <h3>Stand</h3>
-    <p class="reihe" style="margin:0">
-      <span class="lage" id="lage"></span>
-      <span class="leise" id="alter"></span>
-    </p>
+    <p style="margin:0" id="alter"></p>
     <p class="leise winzig" id="phase" style="margin:8px 0 0"></p>
   </div>
 
@@ -538,7 +690,7 @@ _SEITE_MARKUP = """
 
 <div class="raster">
 
-<section class="karte glas" id="karte-aufgaben" data-sammel hidden>
+<section class="karte glas" id="karte-aufgaben" data-bereich="heute" data-sammel hidden>
   <h2>Was zu tun ist</h2>
   <div class="block" id="block-ueberfaellig" hidden><h3>Überfällig</h3><ul></ul></div>
   <div class="block" id="block-heute" hidden><h3>Jetzt dran</h3><ul></ul></div>
@@ -560,7 +712,7 @@ _SEITE_MARKUP = """
 
 <div class="spalte">
 
-<section class="karte glas">
+<section class="karte glas" data-bereich="eintragen">
   <h2>Eintragen</h2>
   <div class="block">
     <h3>Mischauftrag</h3>
@@ -636,7 +788,7 @@ _SEITE_MARKUP = """
   </details>
 </section>
 
-<section class="karte glas" id="karte-pruefen" data-sammel hidden>
+<section class="karte glas" id="karte-pruefen" data-bereich="pruefen" data-sammel hidden>
   <h2>Zu prüfen</h2>
   <div class="block" id="block-vermerke" hidden>
     <h3>Offene Ausgleiche</h3>
@@ -653,11 +805,43 @@ _SEITE_MARKUP = """
 </div>
 </div>
 
+<p class="karte glas leise" id="nichts" hidden>Hier ist gerade nichts.</p>
+
 <footer class="leise" style="text-align:center;padding:4px 0 24px">
   <span id="stempel"></span>
 </footer>
 
 </div>
+
+<!-- Auf dem Handy eine App statt einer Rolle: vier Bereiche, einer sichtbar.
+     Ab 62 rem verschwindet die Leiste und alles steht wieder nebeneinander. -->
+<nav class="leiste glas" id="leiste" aria-label="Bereiche" hidden>
+  <button type="button" data-ziel="heute" aria-current="true">
+    <svg class="leiste-zeichen" viewBox="0 0 24 24" aria-hidden="true"
+         fill="none" stroke="currentColor" stroke-width="2"
+         stroke-linecap="round" stroke-linejoin="round"><path d='M4 12l5 5L20 6'/></svg>
+    <span>Heute</span><span class="marke" data-marke="heute"></span>
+  </button>
+  <button type="button" data-ziel="stand">
+    <svg class="leiste-zeichen" viewBox="0 0 24 24" aria-hidden="true"
+         fill="none" stroke="currentColor" stroke-width="2"
+         stroke-linecap="round" stroke-linejoin="round"><path d='M4 6h16M4 12h16M4 18h16'/></svg>
+    <span>Stand</span>
+  </button>
+  <button type="button" data-ziel="eintragen">
+    <svg class="leiste-zeichen" viewBox="0 0 24 24" aria-hidden="true"
+         fill="none" stroke="currentColor" stroke-width="2"
+         stroke-linecap="round" stroke-linejoin="round"><path d='M4 20h4L20 8l-4-4L4 16v4z'/></svg>
+    <span>Eintragen</span>
+  </button>
+  <button type="button" data-ziel="pruefen">
+    <svg class="leiste-zeichen" viewBox="0 0 24 24" aria-hidden="true"
+         fill="none" stroke="currentColor" stroke-width="2"
+         stroke-linecap="round" stroke-linejoin="round"><circle cx='11' cy='11' r='6'/>
+         <path d='M15.5 15.5L21 21'/></svg>
+    <span>Prüfen</span><span class="marke" data-marke="pruefen"></span>
+  </button>
+</nav>
 
 <div class="toast glas" id="toast" hidden>
   <span id="toasttext"></span>
@@ -886,9 +1070,9 @@ async function lade() {
     document.body.dataset.rolle = ich.rolle;
     const anzahl = await ladeHerden();
     if (!anzahl) {
-      $("zustand").textContent = txt("Noch keine Herde für diesen Betrieb.")
-        + " " + txt("Anlegen mit:") + " elevage einstallen …";
-      ["kopfzahlen", "sperre", "futter", "block-ueberfaellig", "block-heute",
+      $("zustand").hidden = true;
+      $("anfang").hidden = false;
+      ["jetzt", "kopfzahlen", "sperre", "futter", "block-ueberfaellig", "block-heute",
        "block-bestellen", "block-demnaechst", "block-erledigt", "block-vermerke",
        "block-befunde"].forEach((i) => $(i).hidden = true);
       karten();
@@ -899,6 +1083,7 @@ async function lade() {
     });
     if ($("vorrat").value) p.set("vorrat", $("vorrat").value);
     await ladeProgramme();
+    $("anfang").hidden = true;
     bild = await hole("/api/tagesbild?" + p);
     zeige();
     fuelleProgrammwahl();
@@ -909,9 +1094,43 @@ async function lade() {
   }
 }
 
+function jetztSatz() {
+  // Eine Rangfolge, kein Urteil: überfällig schlägt fällig schlägt Ruhe.
+  // Die Zahlen stehen im Tagesbild, hier wird nur ausgewählt, was zählt.
+  const rot = bild.ueberfaellig.length;
+  const gelb = bild.heute.length;
+  if (rot) {
+    return {
+      ampel: "ROT",
+      satz: rot === 1 ? txt("1 Aufgabe ist überfällig")
+                      : rot + " " + txt("Aufgaben sind überfällig"),
+      dazu: wortlaut(bild.ueberfaellig[0], "titel"),
+    };
+  }
+  if (gelb) {
+    return {
+      ampel: "GELB",
+      satz: gelb === 1 ? txt("1 Aufgabe steht heute an")
+                       : gelb + " " + txt("Aufgaben stehen heute an"),
+      dazu: wortlaut(bild.heute[0], "titel"),
+    };
+  }
+  const naechste = bild.demnaechst[0] || bild.bestellen[0];
+  return {
+    ampel: "GRUEN",
+    satz: txt("Heute ist nichts fällig."),
+    dazu: naechste
+      ? txt("Als Nächstes") + ": " + wortlaut(naechste, "titel") + " \u00b7 " + fenster(naechste)
+      : txt("In den nächsten sieben Tagen steht nichts an."),
+  };
+}
+
 function zeige() {
-  $("lage").textContent = zeichen(bild.ampel) + " " + wort(bild.ampel);
-  $("lage").className = "lage " + bild.ampel;
+  const jetzt = jetztSatz();
+  $("jetzt").className = "karte glas jetzt " + jetzt.ampel;
+  $("jetzt-satz").textContent = zeichen(jetzt.ampel) + " " + jetzt.satz;
+  $("jetzt-dazu").textContent = jetzt.dazu;
+  $("jetzt").hidden = false;
 
   const stand = bild.bestand;
   const imStall = stand ? stand.tierzahl : bild.herde.tierzahl;
@@ -1038,6 +1257,8 @@ function zeige() {
   $("block-befunde").hidden = bild.issues.length === 0;
   zaehle($("block-befunde"), bild.issues.length);
   karten();
+  marken();
+  zeigeLeere();
   uebersetzeSeite();
 }
 
@@ -1303,6 +1524,76 @@ $("abmelden").onclick = async () => {
   window.location.href = "/anmelden";
 };
 
+// --- Bereiche: auf dem Handy eine App, auf dem Schirm eine Seite -------
+const BEREICH_SCHLUESSEL = "taktgeber-bereich";
+const BEREICHE = ["heute", "stand", "eintragen", "pruefen"];
+
+function bereichWaehlen(ziel) {
+  if (!BEREICHE.includes(ziel)) ziel = "heute";
+  document.body.dataset.offen = ziel;
+  document.querySelectorAll("#leiste button").forEach((k) => {
+    k.setAttribute("aria-current", k.dataset.ziel === ziel ? "true" : "false");
+  });
+  try { localStorage.setItem(BEREICH_SCHLUESSEL, ziel); } catch (f) {}
+  zeigeLeere();
+  window.scrollTo(0, 0);   // Ein Bereichswechsel ist ein Seitenwechsel.
+}
+
+function zeigeLeere() {
+  // Der Hinweis steht nur da, wenn der offene Bereich wirklich leer ist —
+  // neben einer vollen Karte waere er Laerm.
+  const offen = document.body.dataset.offen;
+  const karten = document.querySelectorAll('[data-bereich="' + offen + '"]');
+  const voll = Array.from(karten).some((e) => !e.hidden);
+  $("nichts").hidden = voll || !document.body.classList.contains("bereiche");
+}
+
+function marken() {
+  // Die Zahl am Knopf ist der halbe Grund fuer die Leiste: man sieht, wo
+  // etwas liegt, ohne hinzugehen.
+  const zahl = (n) => (n ? String(n) : "");
+  document.querySelector('[data-marke="heute"]').textContent =
+    zahl(bild ? bild.ueberfaellig.length + bild.heute.length : 0);
+  document.querySelector('[data-marke="pruefen"]').textContent =
+    zahl(bild ? (bild.vermerke || []).length + bild.issues.length : 0);
+}
+
+function leisteAufbauen() {
+  // Die Leiste gehoert zur schmalen Ansicht. Wer am Schirm sitzt, sieht
+  // alles nebeneinander und braucht keine Bereiche.
+  const schmal = window.matchMedia("(max-width: 61.99rem)").matches;
+  document.body.classList.toggle("bereiche", schmal);
+  $("leiste").hidden = !schmal;
+  if (schmal && !document.body.dataset.offen) {
+    let gemerkt = "heute";
+    try { gemerkt = localStorage.getItem(BEREICH_SCHLUESSEL) || "heute"; } catch (f) {}
+    bereichWaehlen(gemerkt);
+  }
+  zeigeLeere();
+}
+
+document.querySelectorAll("#leiste button").forEach((k) => {
+  k.onclick = () => bereichWaehlen(k.dataset.ziel);
+});
+function menueSetzen() {
+  // Am Schirm gibt es kein Menü: <details> muss dort offen sein, sonst
+  // versteckt es seinen Inhalt, den die CSS-Regel längst wieder zeigt.
+  const breit = window.matchMedia("(min-width: 62rem)").matches;
+  if (breit) $("menue").open = true;
+}
+
+window.addEventListener("resize", () => { leisteAufbauen(); menueSetzen(); });
+leisteAufbauen();
+menueSetzen();
+// Ein Klick ausserhalb schliesst das Menü — sonst bleibt es im Weg stehen.
+document.addEventListener("click", (e) => {
+  const menue = $("menue");
+  if (menue.open && !menue.contains(e.target)
+      && !window.matchMedia("(min-width: 62rem)").matches) {
+    menue.open = false;
+  }
+});
+
 sprachwahl("sprache");
 $("nachreichen").onclick = nachreichen;
 window.addEventListener("online", () => { zeigeBand(); nachreichen(); });
@@ -1345,6 +1636,16 @@ button[type=submit] {
   color: var(--grund); font-weight: 650;
 }
 #fehler { color: var(--terrakotta); font-weight: 650; margin-top: 16px; }
+.wozu { margin: 14px 0 16px; padding: 0; list-style: none; font-size: .95rem; }
+.wozu li {
+  padding: 0 0 0 20px; margin-bottom: 8px; position: relative;
+  overflow-wrap: anywhere;
+}
+.wozu li::before {
+  content: "›"; position: absolute; inset-inline-start: 4px;
+  color: var(--petrol); font-weight: 700;
+}
+.winzig { font-size: .84rem; }
 .fuss { margin-top: 20px; display: flex; align-items: center; gap: 10px; }
 .fuss label { margin: 0; white-space: nowrap; }
 .fuss select { min-height: 38px; flex: 1 1 8rem; min-width: 0; }
@@ -1354,6 +1655,17 @@ button[type=submit] {
 <main class="glas">
   <h1>Taktgeber</h1>
   <p class="leise">Prophylaxe und Fütterung je Herde</p>
+  <!-- Erster Kontakt. Wer hier steht, soll in zwei Sätzen wissen, wofür
+       er sich anmeldet — und was das Werkzeug NICHT tut. -->
+  <ul class="wozu">
+    <li>Sagt jeden Tag, welche Impfung, Entwurmung oder Futterumstellung
+        ansteht — gerechnet aus dem Einstalldatum.</li>
+    <li>Rechnet den Mischauftrag und sperrt ihn, wenn das Rezept nicht
+        aufgeht.</li>
+    <li>Merkt sich, was abgehakt wurde, und meldet, was überfällig ist.</li>
+  </ul>
+  <p class="leise winzig">Der Plan entscheidet, nicht das Gefühl. Jeder Termin
+     kommt aus einer Subtraktion, keiner aus einer Schätzung.</p>
   <form id="form">
     <label for="benutzer">Anmeldename</label>
     <input id="benutzer" name="benutzer" autocomplete="username" autocapitalize="none"

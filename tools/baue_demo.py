@@ -32,7 +32,7 @@ from elevage.models import (
     Tierarzt,
 )
 from elevage.programme import alle_programme
-from elevage.seite import SEITE
+from elevage.seite import MANIFEST, SEITE, ZEICHEN
 from elevage.takt import rechne
 from elevage.vergleich import vergleiche
 from elevage.verzehr import aus_mischungen, kombiniere, richtwert
@@ -303,6 +303,20 @@ window.fetch = async (pfad, optionen) => {
 """
 
 
+def demo_manifest() -> str:
+    """Dasselbe Manifest, nur relativ.
+
+    Auf GitHub Pages liegt die Demo unter `/elevage-e2e/`; ein `start_url`
+    von „/“ führte dort auf eine fremde Seite.
+    """
+    daten = json.loads(MANIFEST)
+    daten["start_url"] = "./"
+    daten["scope"] = "./"
+    daten["name"] = daten["name"] + " (Demo)"
+    daten["icons"] = [{**i, "src": "zeichen.svg"} for i in daten["icons"]]
+    return json.dumps(daten, ensure_ascii=False, indent=2) + "\n"
+
+
 def baue_seite() -> str:
     daten = json.dumps(baue_daten(), ensure_ascii=False, sort_keys=True, indent=None)
     attrappe = ATTRAPPE.replace("DATEN_HIER", daten).replace(
@@ -313,6 +327,10 @@ def baue_seite() -> str:
     if marke not in SEITE:
         raise RuntimeError("Ankerpunkt in seite.SEITE nicht gefunden")
     seite = SEITE.replace(marke, attrappe + marke)
+    # Wurzel-absolute Pfade gehen auf Pages ins Leere: die Demo liegt in
+    # einem Unterordner. Relativ zeigen sie auf die Dateien daneben.
+    seite = seite.replace('href="/manifest.webmanifest"', 'href="manifest.webmanifest"')
+    seite = seite.replace('href="/zeichen.svg"', 'href="zeichen.svg"')
     # Der Stichtag der Demo statt des heutigen Datums.
     return seite.replace(
         "const heute = () => new Date().toISOString().slice(0, 10);",
@@ -324,6 +342,10 @@ def main() -> int:
     ZIEL.parent.mkdir(parents=True, exist_ok=True)
     ZIEL.write_text(baue_seite(), encoding="utf-8")
     (ZIEL.parent / ".nojekyll").write_text("", encoding="utf-8")
+    # Manifest und Zeichen als echte Dateien daneben: die Anwendung liefert
+    # sie aus dem Server, die Demo liegt auf Pages unter einem Unterpfad.
+    (ZIEL.parent / "manifest.webmanifest").write_text(demo_manifest(), encoding="utf-8")
+    (ZIEL.parent / "zeichen.svg").write_text(ZEICHEN, encoding="utf-8")
     print(f"{ZIEL.relative_to(WURZEL)} geschrieben ({ZIEL.stat().st_size} Bytes)")
     return 0
 

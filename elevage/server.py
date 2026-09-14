@@ -55,7 +55,7 @@ from elevage.models import (
     Tierarzt,
 )
 from elevage.programme import alle_programme
-from elevage.seite import ANMELDESEITE, DIENER, ERSTER_BENUTZER, SEITE
+from elevage.seite import ANMELDESEITE, DIENER, ERSTER_BENUTZER, MANIFEST, SEITE, ZEICHEN
 from elevage.vergleich import vergleiche
 from elevage.version import stempel
 from elevage.wartezeit import praeparat_id
@@ -165,7 +165,9 @@ def baue_handler(db: Path | None) -> type[BaseHTTPRequestHandler]:
                 # data: nur für Bilder — das Zeichen der Seite ist ein
                 # Inline-SVG. Ohne diese Zeile blockt die eigene CSP das
                 # eigene Favicon, und nur die Browser-Konsole sagt es.
-                "img-src data:; "
+                # data: für das Inline-Favicon, 'self' für das Zeichen der
+                # Installation — beides von hier, nichts aus dem Netz.
+                "img-src data: 'self'; manifest-src 'self'; "
                 "connect-src 'self'; form-action 'none'; base-uri 'none'",
             )
             self.end_headers()
@@ -251,6 +253,16 @@ def baue_handler(db: Path | None) -> type[BaseHTTPRequestHandler]:
                     # dann fragt ein Wächter zuerst. Steht die Route weiter
                     # unten, bekommt er die Einrichtungsseite als HTML.
                     self._health()
+                    return
+                if teile.path == "/manifest.webmanifest":
+                    # Wie /api/health vor der Benutzerprüfung: der Browser
+                    # holt das Manifest ohne Anmeldung, und auf einer frischen
+                    # Installation bekäme er sonst die Einrichtungsseite als
+                    # HTML — sichtbar nur in der Browser-Konsole.
+                    self._sende(200, MANIFEST.encode(), "application/manifest+json; charset=utf-8")
+                    return
+                if teile.path == "/zeichen.svg":
+                    self._sende(200, ZEICHEN.encode(), "image/svg+xml; charset=utf-8")
                     return
                 with self._mit_db() as conn:
                     leer = archiv.zaehle_benutzer(conn) == 0

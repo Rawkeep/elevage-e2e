@@ -136,6 +136,30 @@ Pages kann den Taktgeber selbst nicht hosten: die Anwendung braucht Python
 und eine Datenbank, Pages liefert nur Dateien. Dafür sind `Dockerfile` und
 `fly.toml` da.
 
+## Wie eine App
+
+Der Taktgeber ist eine Web-App, die sich wie eine installierte anfühlen soll —
+ohne Framework, ohne Build, weiter 0 externe Requests.
+
+* **Installierbar.** `manifest.webmanifest` + `zeichen.svg` kommen vom eigenen
+  Server (`display: standalone`, Themenfarben, maskierbares Icon). „Zum
+  Startbildschirm hinzufügen" nimmt die Adressleiste weg.
+* **Eine Antwortzeile ganz oben.** Die einzige Frage, die jemand im Stall hat,
+  ist „was ist jetzt zu tun?" — sie steht als erster Satz da, farbig nach
+  Dringlichkeit, statt aus drei Blöcken zusammengesucht zu werden. Im ruhigen
+  Fall sagt sie, wann es weitergeht.
+* **Vier Bereiche mit einer Leiste** (Heute · Stand · Eintragen · Prüfen).
+  Unter 62 rem ist genau einer sichtbar, die Knöpfe tragen ihre Zahl — man
+  sieht, wo etwas liegt, ohne hinzugehen. Ab 62 rem verschwindet die Leiste
+  und alles steht wieder nebeneinander.
+* **Einstellungen hinter einem Knopf.** Sprache, Ansicht und Abmelden sind
+  keine Arbeit; auf dem Handy liegen sie im Menü, am Schirm stehen sie offen.
+* **Symbole sind gezeichnet, nicht geliehen** — vier Inline-SVG, keine Emoji
+  (die sehen auf jedem System anders aus), keine Datei, kein Request.
+* **Der erste Bildschirm erklärt sich.** Die Anmeldeseite sagt in drei Zeilen,
+  was das Werkzeug tut; ohne Herde steht da nicht „keine Herde", sondern der
+  Befehl, mit dem eine hinkommt.
+
 ## Die Oberfläche
 
 `elevage ui` startet einen Stdlib-HTTP-Server auf `127.0.0.1:8791`. Die
